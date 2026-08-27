@@ -78,10 +78,14 @@ settings take effect without a version.
 ## Verifying a release
 
 - `npm view mcp-ptitchef version` matches the tag.
-- The GitHub release carries the `.mcpb` bundle, and its address is the one the
-  registry entry names. That address is computed at publish time, never written
-  by hand: written by hand it carries a number that survives a bump and makes
-  the entry announce one version while serving another's file.
+- The GitHub release carries the `.mcpb` bundle.
+- The registry entry names every package `server.json` declares. The bundle is
+  one of them, and its address and hash are computed at publish time, never
+  written by hand: written by hand the address carries a number that survives a
+  bump and makes the entry announce one version while serving another's file.
+  The committed placeholder is what the publish step overwrites, so a descriptor
+  that declares no bundle publishes an entry without one, and the registry
+  refuses a second attempt at the same version.
 - The registry entry appears, with a description at or under **100 characters**.
   It refuses anything longer and checks that the bundle address downloads.
 - The one-click install links in the README encode the package name. Copying

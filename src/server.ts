@@ -84,6 +84,7 @@ export const INSTRUCTIONS = [
   "Called without arguments, list_categories returns the families; pass a family's slug back as 'family' to list what it holds.",
   "search_recipes is answered by the site in one of two ways, and 'kind' says which: from a category page of its own, whose total counts that category, or on its own terms on a single page whose total is the rows served. The two totals count different things.",
   "browse_recipes reads a category page by page, and search_by_ingredients answers what can be made from what a cook has.",
+  "Some topics are answered with a guide the site wrote: recipes grouped under headings of its own, with no total and rows carrying only a name and an address. 'kind' says 'guide' there, and browse_recipes on the same 'topic_slug' reads the topic's full listing with its total.",
   "A listing marked 'single_page' whose total exceeds 'rows_seen' has a remainder the site counts and will not serve.",
   "The page an answer reports is the page the site served, which is the first page again when the page asked for is past the last one.",
   "get_recipe reads one recipe from the 'id' a listing row carried, and rescales its ingredients when given 'servings'. Read each line's 'scaling' before quoting a quantity: 'scaled' is exact, 'rounded' was moved to stay usable, 'unscaled' carries nothing that could be multiplied.",

@@ -6,6 +6,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A topic the site answers with a guide of its own, rather than with a listing,
+  is read as a guide instead of failing. Every listing address now carries its
+  page number, which is what reaches the listing of such a topic.
+
 ### Added
 
 - `list_categories`, which publishes the tree of categories Ptitchef browses its

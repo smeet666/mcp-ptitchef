@@ -235,6 +235,10 @@ describe("INSTRUCTIONS", () => {
     expect(INSTRUCTIONS).toMatch(/rate_limited/);
   });
 
+  it("says some topics are answered with a guide rather than a listing", () => {
+    expect(INSTRUCTIONS).toMatch(/guide/i);
+  });
+
   it("asks for the site to be credited", () => {
     expect(INSTRUCTIONS).toMatch(/credit/i);
   });

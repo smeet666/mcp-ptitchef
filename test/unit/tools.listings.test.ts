@@ -357,3 +357,32 @@ describe("a row the page held and this could not render", () => {
     expect(structuredOf(result).notes.join(" ")).toMatch(/rows were set aside/i);
   });
 });
+
+describe("a search the site answered with a guide", () => {
+  it("says what a guide is and where the full listing lives", async () => {
+    const result = await runWithClock(
+      runSearchRecipes(
+        clientServing(fixture("listing-guide"), "https://www.ptitchef.com/recettes/brindilles"),
+        args({ query: "brindilles" }),
+      ),
+    );
+    const structured = structuredOf(result);
+    const notes = structured.notes.join(" ");
+
+    expect(structured.kind).toBe("guide");
+    expect(structured.total_available).toBeNull();
+    expect(notes).toMatch(/guide it wrote for this topic/i);
+    expect(notes).toContain("browse_recipes");
+  });
+
+  it("says nothing of a remainder, since the guide counts nothing", async () => {
+    const result = await runWithClock(
+      runSearchRecipes(
+        clientServing(fixture("listing-guide"), "https://www.ptitchef.com/recettes/brindilles"),
+        args({ query: "brindilles" }),
+      ),
+    );
+
+    expect(structuredOf(result).notes.join(" ")).not.toMatch(/cannot be read/i);
+  });
+});

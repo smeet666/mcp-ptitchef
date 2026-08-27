@@ -80,6 +80,8 @@ const TOTAL_MEANS: Readonly<Record<ListingReport["kind"], string>> = {
   free_text:
     "The site answered this search on its own terms, on one page, and the total is the number of rows it served.",
   category: "The total counts what this category holds across all its pages.",
+  guide:
+    "The site answered with a guide it wrote for this topic: recipes grouped under headings of its own, with no total and no further page. Its rows carry a name and an address and nothing else. Pass 'topic_slug' to browse_recipes for the full listing of the topic, which states how many recipes it holds.",
   standing:
     "This is one of the site's own standing lists, so the total is the length of that list rather than a count of its catalogue.",
   fridge:

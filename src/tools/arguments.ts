@@ -16,6 +16,9 @@
 import { z } from "zod";
 import { editDistance } from "../text/distance.js";
 
+/** Past this a name is not a misspelling of anything declared here. */
+const LONGEST_NAME_COMPARED = 64;
+
 /** The code a caller branches on when the arguments cannot produce a request. */
 const INVALID_INPUT = "invalid_input";
 
@@ -92,7 +95,9 @@ function unknownArgumentMessage(keys: readonly string[], declared: readonly stri
 function nearestArgument(key: string, declared: readonly string[]): string | undefined {
   const flatten = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
   const flat = flatten(key);
-  if (flat.length === 0) {
+  // A name this long is not one anybody meant. Measuring how far it sits from
+  // each declared name costs its length times theirs, and the caller wrote it.
+  if (flat.length === 0 || flat.length > LONGEST_NAME_COMPARED) {
     return undefined;
   }
 

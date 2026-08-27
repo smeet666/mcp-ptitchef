@@ -22,7 +22,27 @@ import { absolute, isFamilyHref, recipeIdFrom, slugFromHref } from "./urls.js";
 
 /** The container the tree lives in, and the boundary of the page's own body. */
 const CONTAINER = /<div[^>]*class="[^"]*\brecipe-cat-list\b[^"]*"[^>]*>/;
-const BODY_END = "</main>";
+/**
+ * Where a level's entries stop.
+ *
+ * A page carries a navigation and a footer whose links have the shape an entry
+ * has, so a reader running past the body publishes them as categories. The site
+ * writes the first of these on every page it serves, and the others are there
+ * for the day it stops writing one of them.
+ */
+const BODY_ENDS = ["</main>", "<footer", "</body>"] as const;
+
+/** The first of them the page writes after `from`, or the end of the page. */
+function bodyEndsAt(html: string, from: number): number {
+  let end = html.length;
+  for (const marker of BODY_ENDS) {
+    const at = html.indexOf(marker, from);
+    if (at !== -1 && at < end) {
+      end = at;
+    }
+  }
+  return end;
+}
 
 /** One entry of the level, opened. The split keeps whatever follows each one. */
 const ENTRY = /<div[^>]*\bclass="[^"]*\bitem\b[^"]*"[^>]*>/;
@@ -126,9 +146,8 @@ export function parseCategoryPage(
     });
   }
 
-  const after = html.slice(container.index + container[0].length);
-  const end = after.indexOf(BODY_END);
-  const region = end === -1 ? after : after.slice(0, end);
+  const from = container.index + container[0].length;
+  const region = html.slice(from, bodyEndsAt(html, from));
 
   const categories: Category[] = [];
   const skipped: string[] = [];
@@ -184,8 +203,6 @@ const NEXT_PAGE = /href="[^"]*-page-\d+"/;
  */
 const GUIDE = /<div[^>]*class="[^"]*\bsilo-sections\b[^"]*"[^>]*>/;
 const GUIDE_ROW = /<div[^>]*class="[^"]*\bitem\b[^"]*"[^>]*>/;
-/** Where a guide stops. Past it lie the page's own footer and its sidebars. */
-const GUIDE_END = "</main>";
 const GUIDE_TITLE = /<a[^>]+href="([^"]*)"[^>]*class="[^"]*\bi-title\b[^"]*"[^>]*>([\s\S]*?)<\/a>/;
 const GUIDE_IMAGE = /<img[^>]*\ssrc="([^"]*)"/;
 /** How many readers rated a row, which the guide states as a number. */
@@ -463,8 +480,8 @@ function readGuideRows(html: string, guide: RegExpExecArray | null): ReadRows {
   const held = new Set<string>();
   // Bounded at the end of the page's body, like every other reader here. Read
   // past it, a footer's own items would be published as rows of the guide.
-  const stop = html.indexOf(GUIDE_END, guide.index);
-  const region = html.slice(guide.index + guide[0].length, stop === -1 ? undefined : stop);
+  const from = guide.index + guide[0].length;
+  const region = html.slice(from, bodyEndsAt(html, from));
 
   // The first piece is whatever sits between the guide and its first row.
   for (const chunk of region.split(GUIDE_ROW).slice(1)) {

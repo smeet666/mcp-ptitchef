@@ -24,6 +24,8 @@ export const MAX_ALLOWED_INTERVAL_MS = 60_000;
 
 export interface Config {
   userAgent: string;
+  maxBodyBytes: number;
+  budgetMs: number;
   minIntervalMs: number;
   timeoutMs: number;
   maxRetries: number;
@@ -129,6 +131,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // to for longer than a search listing would be.
     cacheTtlMs: readInteger(env, "PTC_CACHE_TTL_MS", 900_000, 0, 86_400_000),
     cacheMaxEntries: readInteger(env, "PTC_CACHE_MAX_ENTRIES", 200, 1, 5000),
+    // The largest page this site serves runs to a few hundred kilobytes. Past
+    // this the read is abandoned rather than held whole in memory, because a
+    // body that arrives quickly is never abandoned by a deadline.
+    maxBodyBytes: readInteger(env, "PTC_MAX_BODY_BYTES", 8_000_000, 100_000, 64_000_000),
+    // One read owes the caller an answer inside this, retries and the waits
+    // between them included. The deadline above governs one attempt, and a
+    // refusal naming a delay is obeyed, so without a budget the two add up to
+    // minutes on the single queue every other tool waits behind.
+    budgetMs: readInteger(env, "PTC_BUDGET_MS", 60_000, 5000, 600_000),
     logLevel,
   };
 }

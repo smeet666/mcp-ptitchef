@@ -10,7 +10,7 @@ import type { Config, Logger } from "../config.js";
 import { invalidInput, notFound } from "../errors.js";
 import type { CategoryReport, ListingKind, ListingReport, Read, Recipe } from "../types.js";
 import { Cache } from "./cache.js";
-import { fetchPage } from "./http.js";
+import { fetchPage, type Page } from "./http.js";
 import { type ListingContext, parseCategoryPage, parseListingPage } from "./parse.js";
 import { parseRecipePage } from "./parseRecipe.js";
 import { RateLimiter } from "./rateLimiter.js";
@@ -65,6 +65,16 @@ export class PtitchefClient {
   private readonly categories: Cache<StoredCategories>;
   private readonly listings: Cache<StoredListing>;
   private readonly recipes: Cache<Recipe>;
+  /**
+   * Reads on their way to the site, so two callers asking one question ask it
+   * of the site once.
+   *
+   * Between a miss in the store and the write that follows it there are several
+   * awaits, and a second caller arriving inside that window sees an empty store
+   * and sets off again. The site then receives one request per caller for one
+   * page, which is the only place this server multiplies its own traffic.
+   */
+  private readonly inFlight = new Map<string, Promise<Page>>();
 
   constructor(options: ClientOptions) {
     this.config = options.config;
@@ -80,6 +90,26 @@ export class PtitchefClient {
       options.config.cacheMaxEntries,
     );
     this.recipes = new Cache<Recipe>(options.config.cacheTtlMs, options.config.cacheMaxEntries);
+  }
+
+  /**
+   * One read of one address, shared with whoever asks for it meanwhile.
+   *
+   * The entry is dropped as the read settles, so a later caller reads the store
+   * or starts a read of its own rather than being handed a stale promise.
+   */
+  private read(url: string): Promise<Page> {
+    const already = this.inFlight.get(url);
+    if (already) {
+      this.logger.debug(`joined a read already under way: ${url}`);
+      return already;
+    }
+
+    const started = this.limiter
+      .schedule(() => fetchPage(this.request(url)))
+      .finally(() => this.inFlight.delete(url));
+    this.inFlight.set(url, started);
+    return started;
   }
 
   /**
@@ -111,7 +141,7 @@ export class PtitchefClient {
       return withSkipped({ data: stored.report, cached: true }, stored.skipped);
     }
 
-    const page = await this.limiter.schedule(() => fetchPage(this.request(url)));
+    const page = await this.read(url);
 
     // The site answers a family it does not hold by sending the reader to the
     // root of the tree, with HTTP 200 and the root's own categories. Rendering
@@ -170,7 +200,7 @@ export class PtitchefClient {
       return withSkipped({ data: stored.report, cached: true }, stored.skipped);
     }
 
-    const page = await this.limiter.schedule(() => fetchPage(this.request(url)));
+    const page = await this.read(url);
 
     // The site answers a search in five ways, and the address it answers from
     // is what tells them apart. Two of them carry no listing at all: it opens a
@@ -259,13 +289,19 @@ export class PtitchefClient {
     }
 
     const url = recipeUrl(named);
-    const stored = this.recipes.get(url);
+    // Keyed by the number the site identifies a recipe with, because the words
+    // of an address are decorative: two identifiers of one recipe would
+    // otherwise hold two entries and cost the site two reads for one page.
+    /* v8 ignore next 2 -- The identifier passed the shape check above, which
+       requires the number this reads; the fallback narrows the type. */
+    const key = recipeNumberOf(named) ?? url;
+    const stored = this.recipes.get(key);
     if (stored) {
       this.logger.debug(`served from the store: ${url}`);
       return { data: stored, cached: true };
     }
 
-    const page = await this.limiter.schedule(() => fetchPage(this.request(url)));
+    const page = await this.read(url);
     // The words of a recipe's address are decorative and its number is not: the
     // site answers wrong words by serving the recipe the number names, and a
     // number it does not hold by serving another recipe altogether. Comparing
@@ -278,7 +314,7 @@ export class PtitchefClient {
     }
 
     const recipe = parseRecipePage(page.body, page.url);
-    this.recipes.set(url, recipe);
+    this.recipes.set(key, recipe);
     return { data: recipe, cached: false };
   }
 
@@ -293,7 +329,7 @@ export class PtitchefClient {
       return withSkipped({ data: stored.report, cached: true }, stored.skipped);
     }
 
-    const page = await this.limiter.schedule(() => fetchPage(this.request(url)));
+    const page = await this.read(url);
     const parsed = parseListingPage(page.body, describe(page.url));
     if (parsed.skipped.length > 0) {
       const count = parsed.skipped.length;
@@ -309,6 +345,8 @@ export class PtitchefClient {
       url,
       userAgent: this.config.userAgent,
       timeoutMs: this.config.timeoutMs,
+      maxBodyBytes: this.config.maxBodyBytes,
+      budgetMs: this.config.budgetMs,
       maxRetries: this.config.maxRetries,
       limiter: this.limiter,
       logger: this.logger,

@@ -12,6 +12,7 @@ import {
   invalidInput,
   networkError,
   notFound,
+  parseFailure,
   rateLimited,
   timeout as timeoutError,
 } from "../errors.js";
@@ -21,6 +22,10 @@ export interface FetchOptions {
   url: string;
   userAgent: string;
   timeoutMs: number;
+  /** The most this will hold in memory for one answer. */
+  maxBodyBytes: number;
+  /** The whole of the time one read may take, its retries included. */
+  budgetMs: number;
   maxRetries: number;
   limiter: RateLimiter;
   logger: Logger;
@@ -263,11 +268,22 @@ export async function fetchPage(options: FetchOptions): Promise<Page> {
   const { url, userAgent, timeoutMs, maxRetries, limiter, logger } = options;
   const doFetch = options.fetchImpl ?? fetch;
 
+  limiter.beginRequest();
+  const spentBy = Date.now() + options.budgetMs;
   let lastError: Error | null = null;
   /** Honoured before the next attempt rather than slept after the last one. */
   let askedWaitMs = 0;
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    // Checked before each attempt after the first, so a read that has already
+    // spent its budget stops rather than holding the one queue every other tool
+    // waits behind. The caller is told what it cost, not left to guess.
+    if (attempt > 0 && Date.now() + askedWaitMs >= spentBy) {
+      throw timeoutError(
+        `No answer from Ptitchef within the ${options.budgetMs}ms one read is given, across ${attempt} attempts.`,
+        { url },
+      );
+    }
     if (askedWaitMs > 0) {
       logger.debug(`waiting ${askedWaitMs}ms, as asked`);
       // Read once into a constant: the timer closes over what this attempt was
@@ -307,7 +323,7 @@ export async function fetchPage(options: FetchOptions): Promise<Page> {
           });
         }
         limiter.succeeded();
-        return { body: await response.text(), url: from };
+        return { body: await readBounded(response, options.maxBodyBytes, url), url: from };
       }
 
       const verdict = await readRefusal(response, url, attempt, maxRetries);
@@ -333,4 +349,46 @@ export async function fetchPage(options: FetchOptions): Promise<Page> {
      turn can only raise, so this is the exit the compiler requires and no state
      reaches. */
   throw networkError(`Could not reach Ptitchef: ${lastError?.message ?? "unknown"}`, { url });
+}
+
+/**
+ * Read a body, giving up past a size rather than holding it whole.
+ *
+ * A deadline abandons a body that arrives slowly. One that arrives quickly and
+ * large is never abandoned by it, and it lands in memory in one piece before
+ * anything looks at it: a page of two hundred megabytes fits inside twenty
+ * seconds, and what it costs is the whole session rather than the one call.
+ */
+async function readBounded(response: Response, maxBytes: number, url: string): Promise<string> {
+  const stream = response.body;
+  if (stream === null) {
+    return "";
+  }
+
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  const parts: string[] = [];
+  let held = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      held += value.byteLength;
+      if (held > maxBytes) {
+        throw parseFailure(
+          `Ptitchef answered with more than ${maxBytes} bytes, past what this reads for one page.`,
+          { url },
+        );
+      }
+      parts.push(decoder.decode(value, { stream: true }));
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+
+  parts.push(decoder.decode());
+  return parts.join("");
 }

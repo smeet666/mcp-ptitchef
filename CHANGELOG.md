@@ -49,6 +49,22 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A read holds a bounded amount in memory, and one read has a budget of its own
+  covering its retries and the waits between them, so a busy site cannot hold
+  the queue every other tool waits behind.
+- Two callers asking for one address at once ask the site once.
+- A recipe is stored under the number that identifies it rather than under the
+  words of its address, so two identifiers of one recipe cost one read.
+- The site is asked for room once per request rather than once per attempt, and
+  the spacing narrows again after two clean answers rather than three.
+- An answer is bounded by its size as well as by its number of rows, since a
+  hundred rows of a long listing outgrow what one answer carries.
+- An ingredient line longer than a cook writes is returned as published, saying
+  why, and the pattern that looks for a measure inside a line no longer costs
+  the square of that line's length.
+- Rows set aside in numbers are summarised rather than recited, and a level's
+  entries stop at its footer where a page writes no closing tag for its body.
+
 - `amount_max`, `query` and `steps` are published in the shapes every source of
   recipes publishes them in; `illustrated_steps` carries the photograph the site
   took of each step.

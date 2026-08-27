@@ -85,23 +85,33 @@ export interface RecipeRow {
   ingredients_preview: string | null;
 }
 
-/** How a listing came to be, which decides what its total counts. */
-export type ListingKind =
+/**
+ * How a listing came to be, which decides what its total counts.
+ *
+ * Written as a list rather than as a union, because the tools publish it to a
+ * client as a set of accepted values. A union declared in one place and typed
+ * out again in the other is two places that must agree, and the day they stop
+ * agreeing a legitimate answer is refused by its own schema.
+ */
+export const LISTING_KINDS = [
   /** A search the site answered from a topic page of its own. */
-  | "topic"
+  "topic",
   /** A search the site answered on its own terms, without a topic page. */
-  | "free_text"
+  "free_text",
   /** A category or topic page opened directly. */
-  | "category"
+  "category",
   /**
    * A guide the site writes for a topic: recipes grouped under headings it
    * chose, in place of a listing. It publishes no total and no further page.
    */
-  | "guide"
+  "guide",
   /** One of the site's own standing listings. */
-  | "standing"
+  "standing",
   /** Recipes found from a list of ingredients. */
-  | "fridge";
+  "fridge",
+] as const;
+
+export type ListingKind = (typeof LISTING_KINDS)[number];
 
 /** What a listing establishes, and what it refuses to overstate about it. */
 export interface ListingReport {

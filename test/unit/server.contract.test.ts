@@ -213,6 +213,92 @@ describe("the wiring of every tool", () => {
   });
 });
 
+describe("what a tool answers, checked against the schema it publishes", () => {
+  /** A server whose reads all come back as one page, served from one address. */
+  async function serving(body: string, servedFrom: string): Promise<Client> {
+    const fetchImpl = (async (): Promise<Response> => {
+      const response = new Response(body, {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+      Object.defineProperty(response, "url", { value: servedFrom });
+      return response;
+    }) as unknown as typeof fetch;
+    const server = createServer({ fetchImpl });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "contract-test", version: "0.0.0" });
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+    return client;
+  }
+
+  /** Drives a pending call to its end on the fake clock. */
+  async function settle<T>(promise: Promise<T>): Promise<T> {
+    let outcome: { value: T } | { error: unknown } | undefined;
+    promise.then(
+      (value) => {
+        outcome = { value };
+      },
+      (error: unknown) => {
+        outcome = { error };
+      },
+    );
+    for (let step = 0; step < 2000 && outcome === undefined; step += 1) {
+      await vi.advanceTimersByTimeAsync(500);
+    }
+    if (outcome === undefined) {
+      throw new Error("the call never settled on the fake clock");
+    }
+    if ("error" in outcome) {
+      throw outcome.error;
+    }
+    return outcome.value;
+  }
+
+  function fixture(name: string): string {
+    return readFileSync(new URL(`../fixtures/${name}.html`, import.meta.url), "utf8");
+  }
+
+  /**
+   * Every shape of listing the site serves, answered through the wiring.
+   *
+   * The SDK checks a tool's answer against the schema that tool published, and
+   * a shape the code can produce but the schema does not accept is refused
+   * there and nowhere else. A call made straight to the tool never meets that
+   * check, so it is made through a client here.
+   */
+  const LISTINGS = [
+    ["an ordinary listing", "listing-first", "https://www.ptitchef.com/recettes/brindilles"],
+    ["a guide", "listing-guide", "https://www.ptitchef.com/recettes/brindilles"],
+    ["a search that matched nothing", "listing-empty", "https://www.ptitchef.com/index.php?q=x"],
+  ] as const;
+
+  for (const [what, name, servedFrom] of LISTINGS) {
+    it(`answers a search returning ${what} without its own schema refusing it`, async () => {
+      const client = await serving(fixture(name), servedFrom);
+
+      const result = await settle(
+        client.callTool({ name: "search_recipes", arguments: { query: "brindilles" } }),
+      );
+
+      expect(result.isError, `search_recipes was refused on ${what}`).not.toBe(true);
+    });
+  }
+
+  it("answers a recipe read through the wiring without its own schema refusing it", async () => {
+    const page = "https://www.ptitchef.com/recettes/accompagnement/brindilles-au-four-fid-101";
+    const client = await serving(fixture("recipe-full"), page);
+
+    const result = await settle(
+      client.callTool({
+        name: "get_recipe",
+        arguments: { id: "recettes/accompagnement/brindilles-au-four-fid-101", servings: 8 },
+      }),
+    );
+
+    expect(result.isError, "get_recipe was refused by its own schema").not.toBe(true);
+  });
+});
+
 describe("INSTRUCTIONS", () => {
   it("is not empty", () => {
     expect(INSTRUCTIONS.trim().length).toBeGreaterThan(0);

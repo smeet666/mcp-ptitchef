@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import type { ListingReport, RecipeRow } from "../types.js";
+import { LISTING_KINDS, type ListingReport, type RecipeRow } from "../types.js";
 import { ok, SOURCE_NAME, type ToolResult } from "./shared.js";
 
 const recipeRowSchema = z.object({
@@ -40,7 +40,9 @@ const recipeRowSchema = z.object({
 export const listingOutputShape = {
   asked: z.string().describe("What was asked for: a search, a category, or a list of ingredients."),
   kind: z
-    .enum(["topic", "free_text", "category", "standing", "fridge"])
+    // Read from the one list that declares them, so a kind added to the server
+    // cannot be refused by the schema that publishes it.
+    .enum(LISTING_KINDS)
     .describe(
       "How the listing came to be, which decides what its total counts. 'topic' means the site " +
         "answered a search from a page of its own; 'free_text' means it answered on its own terms.",

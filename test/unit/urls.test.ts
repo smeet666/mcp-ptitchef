@@ -89,8 +89,10 @@ describe("fridgeUrl", () => {
 });
 
 describe("listingUrl", () => {
-  it("leaves the first page unnumbered, as the site writes it", () => {
-    expect(listingUrl("brindilles", 1)).toBe("https://www.ptitchef.com/recettes/brindilles");
+  it("numbers the first page too, which the site accepts for every topic", () => {
+    // Some topics answer their unnumbered address with a guide of curated
+    // sections instead of a listing, and the number is what reaches the listing.
+    expect(listingUrl("brindilles", 1)).toBe("https://www.ptitchef.com/recettes/brindilles-page-1");
   });
 
   it("numbers every page after the first", () => {

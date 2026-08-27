@@ -93,6 +93,11 @@ export type ListingKind =
   | "free_text"
   /** A category or topic page opened directly. */
   | "category"
+  /**
+   * A guide the site writes for a topic: recipes grouped under headings it
+   * chose, in place of a listing. It publishes no total and no further page.
+   */
+  | "guide"
   /** One of the site's own standing listings. */
   | "standing"
   /** Recipes found from a list of ingredients. */

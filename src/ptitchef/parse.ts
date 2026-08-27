@@ -212,6 +212,20 @@ const LISTING_HEADING = /<h1[^>]*>([\s\S]*?)<\/h1>/;
 /** A link to a further page of the same listing. */
 const NEXT_PAGE = /href="[^"]*-page-\d+"/;
 
+/**
+ * The guide the site writes for some topics in place of a listing.
+ *
+ * Recipes are grouped under headings the site chose, and a row there carries
+ * only its name, its address and its picture: no time, no difficulty and no
+ * rating the site computed.
+ */
+const GUIDE = /<div[^>]*class="[^"]*\bsilo-sections\b[^"]*"[^>]*>/;
+const GUIDE_ROW = /<div[^>]*class="[^"]*\bitem\b[^"]*"[^>]*>/;
+const GUIDE_TITLE = /<a[^>]+href="([^"]*)"[^>]*class="[^"]*\bi-title\b[^"]*"[^>]*>([\s\S]*?)<\/a>/;
+const GUIDE_IMAGE = /<img[^>]*\ssrc="([^"]*)"/;
+/** How many readers rated a row, which the guide states as a number. */
+const GUIDE_VOTES = /title="[^"]*?(\d+)\s*votes"/;
+
 /** How a row states a duration: whole hours, whole minutes, or both. */
 const HOURS = /(\d+)\s*h/i;
 const MINUTES = /(?:\d+\s*h\s*)?(\d+)\s*(?:m|min)\b/i;
@@ -386,6 +400,108 @@ function collectRatings(payload: unknown, into: Map<string, RatingByRow>): void 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
+/**
+ * One row of a guide, or the reason it could not be rendered.
+ *
+ * The guide draws a rating and states none, so no rating is published from it:
+ * the drawn figure is rounded to the nearest star and is not what the site
+ * computed. How many readers rated it is a number the page does state.
+ */
+function guideRowIn(markup: string): RecipeRow | string {
+  const heading = GUIDE_TITLE.exec(markup);
+  const href = heading?.[1];
+  const id = href === undefined || href === "" ? null : recipeIdFrom(href);
+  if (id === null || href === undefined) {
+    return "a row of the guide carries no recipe address, so there is nothing to pass back for it";
+  }
+
+  const image = GUIDE_IMAGE.exec(markup)?.[1];
+  const votes = GUIDE_VOTES.exec(markup)?.[1];
+
+  return {
+    id,
+    /* v8 ignore next -- The address was read out of this very match, so the
+       words beside it came with it; the fallback narrows the type. */
+    title: textOf(heading?.[2] ?? ""),
+    url: absolute(href),
+    image_url: image === undefined || image === "" ? null : absolute(image),
+    rating: null,
+    rating_count: votes === undefined ? null : Number(votes),
+    review_count: null,
+    category: null,
+    difficulty: null,
+    total_minutes: null,
+    calories: null,
+    ingredients_preview: null,
+  };
+}
+
+/** What one pass over a page's rows came to. */
+interface ReadRows {
+  results: RecipeRow[];
+  skipped: string[];
+  /** Rows the page held, before any were set aside or folded together. */
+  seen: number;
+}
+
+/** The rows of a listing, read from where its section opens. */
+function readListingRows(html: string, from: number): ReadRows {
+  const after = html.slice(from);
+  const end = after.indexOf(LISTING_END);
+  const region = end === -1 ? after : after.slice(0, end);
+  const ratings = ratingsIn(html);
+
+  const results: RecipeRow[] = [];
+  const skipped: string[] = [];
+  let seen = 0;
+
+  for (const found of region.matchAll(ROW)) {
+    seen += 1;
+    /* v8 ignore next -- The pattern writes the group it reads, so a match always
+       carries it; the fallback is what narrows the type. */
+    const row = rowIn(found[1] ?? "", ratings);
+    if (typeof row === "string") {
+      skipped.push(row);
+    } else {
+      results.push(row);
+    }
+  }
+  return { results, skipped, seen };
+}
+
+/**
+ * The rows of a guide, read across every heading it groups them under.
+ *
+ * A guide names the same recipe under two headings where it belongs to both,
+ * and counting it twice would state a length the page has not.
+ */
+function readGuideRows(html: string, guide: RegExpExecArray | null): ReadRows {
+  const results: RecipeRow[] = [];
+  const skipped: string[] = [];
+  let seen = 0;
+  if (guide === null) {
+    return { results, skipped, seen };
+  }
+
+  const held = new Set<string>();
+  // The first piece is whatever sits between the guide and its first row.
+  for (const chunk of html
+    .slice(guide.index + guide[0].length)
+    .split(GUIDE_ROW)
+    .slice(1)) {
+    const row = guideRowIn(chunk);
+    if (typeof row === "string") {
+      seen += 1;
+      skipped.push(row);
+    } else if (!held.has(row.id)) {
+      held.add(row.id);
+      seen += 1;
+      results.push(row);
+    }
+  }
+  return { results, skipped, seen };
+}
+
 export interface ParsedListingPage {
   report: ListingReport;
   /** Rows the page held that could not be rendered, and why. */
@@ -414,7 +530,8 @@ export function parseListingPage(html: string, context: ListingContext): ParsedL
   const stated = total === undefined ? null : readCount(total);
 
   const section = LISTING.exec(html);
-  if (section === null && stated === null) {
+  const guide = section === null ? GUIDE.exec(html) : null;
+  if (section === null && guide === null && stated === null) {
     throw parseFailure("Ptitchef served a page that carries neither a listing nor a count.", {
       url: context.url,
     });
@@ -422,33 +539,18 @@ export function parseListingPage(html: string, context: ListingContext): ParsedL
 
   const headingText = textOf(LISTING_HEADING.exec(html)?.[1] ?? "");
 
-  const results: RecipeRow[] = [];
-  const skipped: string[] = [];
-  let seen = 0;
-
-  if (section !== null) {
-    const after = html.slice(section.index + section[0].length);
-    const end = after.indexOf(LISTING_END);
-    const region = end === -1 ? after : after.slice(0, end);
-    const ratings = ratingsIn(html);
-
-    for (const found of region.matchAll(ROW)) {
-      seen += 1;
-      /* v8 ignore next -- The pattern writes the group it reads, so a match always
-         carries it; the fallback is what narrows the type and no state reaches it. */
-      const row = rowIn(found[1] ?? "", ratings);
-      if (typeof row === "string") {
-        skipped.push(row);
-      } else {
-        results.push(row);
-      }
-    }
-  }
+  const read =
+    section === null
+      ? readGuideRows(html, guide)
+      : readListingRows(html, section.index + section[0].length);
+  const { results, skipped, seen } = read;
 
   return {
     report: {
       asked: context.asked,
-      kind: context.kind,
+      // The shape of the page decides what was read, rather than what the
+      // caller expected to find at that address.
+      kind: guide === null ? context.kind : "guide",
       topic_slug: context.topicSlug,
       title: headingText === "" ? null : headingText,
       results,
@@ -459,7 +561,9 @@ export function parseListingPage(html: string, context: ListingContext): ParsedL
       // The site offers a further page by linking one. A listing it serves whole
       // links none, and saying so keeps a caller from paging into a repeat of
       // what they already hold.
-      single_page: !NEXT_PAGE.test(html),
+      // A guide is complete in itself. The page it links is the topic's own
+      // listing, which is a different question and a different total.
+      single_page: guide !== null || !NEXT_PAGE.test(html),
       url: context.url,
     },
     skipped,

@@ -340,6 +340,56 @@ const listingEmpty = `<!doctype html>
 </body></html>
 `;
 
+/** One row of a guide, which states a vote count and draws the rating. */
+const guideRow = (id, slug, title, votes) => `
+      <div class="item clearfix">
+        <img loading="lazy" src="/imgupl/feed-data/${id}.webp" alt="Recette ${title}">
+        <a href="https://www.ptitchef.com/recettes/${slug}-fid-${id}" class="i-title stretched-link">${title}</a>
+        <span class="i-stats">
+          <span data-content=" (${votes} votes)" title="4/${votes} votes"><i class="note-fa n45"></i></span>
+          <span data-content="6" title="6 commentaires"><i class="fal fa-comments"></i></span>
+        </span>
+      </div>`;
+
+/**
+ * The guide the site writes for some topics in place of a listing.
+ *
+ * Its rows are grouped under headings it chose, it publishes no total, and the
+ * same recipe appears under two headings where it belongs to both. The last row
+ * carries no address at all.
+ */
+const listingGuide = `<!doctype html>
+<html lang="fr"><head><title>Brindilles : recettes faciles pour les cuisiner sans se lasser</title></head>
+<body>${chrome}
+<main id="page-main">
+  <h1 class="title">Brindilles : recettes faciles</h1>
+  <div class="silo-sections mb-3">
+    <section id="ss-1" class="ss-item">
+      <h2 class="ssi-title stitle">Bien préparer les brindilles</h2>
+      <div class="ssi-text mb-2">Lavez-les avant cuisson.</div>
+      <div class="ssi-data"><div class="basic-list clearfix">
+        ${guideRow(101, "accompagnement/brindilles-au-four", "Brindilles au four", 153)}
+        ${guideRow(102, "plat/galinette-braisee", "Galinette braisée", 38)}
+      </div></div>
+    </section>
+    <section id="ss-2" class="ss-item mb-0">
+      <h2 class="ssi-title stitle">Plats complets aux brindilles</h2>
+      <div class="ssi-data"><div class="basic-list clearfix">
+        ${guideRow(101, "accompagnement/brindilles-au-four", "Brindilles au four", 153)}
+        ${guideRow(103, "dessert/orpin-confit", "Orpin confit", 0)}
+        <div class="item clearfix">
+          <img loading="lazy" src="" alt="">
+          <a href="https://www.ptitchef.com/recettes/gouter/brindilles-sucrees-fid-104" class="i-title">Brindilles sucrées</a>
+        </div>
+        <div class="item clearfix"><span class="i-title">Sans adresse</span></div>
+      </div></div>
+    </section>
+  </div>
+  <a href="/recettes/brindilles-page-1">1</a>
+</main>
+</body></html>
+`;
+
 /** A page carrying neither a listing nor a count of one. */
 const listingUnreadable = `<!doctype html>
 <html lang="fr"><head><title>Ptitchef</title></head>
@@ -666,6 +716,7 @@ const files = {
   "listing-unreadable.html": listingUnreadable,
   "listing-broken-row.html": listingBrokenRow,
   "listing-fridge-cut.html": listingCut,
+  "listing-guide.html": listingGuide,
   "listing-odd.html": listingOdd,
   "listing-one-broken-row.html": listingOneBrokenRow,
   "recipe-full.html": recipeFull,

@@ -131,8 +131,10 @@ The same arithmetic, offline, on any French ingredient list whatever its source.
 ### `get_recipe_translations`
 
 Lists the other languages a recipe was published in. Ptitchef is the French
-edition of a network of six sites publishing the same recipes, and each page
-names its counterparts.
+edition of a network of sites publishing the same recipes, and each page names
+its counterparts. How many there are is the recipe's own business: a recent one
+names more than twenty, an older one names none, and the answer states what the
+page carries rather than a number fixed here.
 
 ## What the answers refuse to overstate
 
@@ -174,6 +176,12 @@ send a caller round the same rows for ever.
 **The fridge search counts far past what it serves.** It finds eighty-nine
 recipes for three ingredients, offers twenty-four of them on one page, and links
 no other. The answer states both figures and says the rest cannot be read.
+
+**A guide is not a listing, and the answer says which arrived.** Some topics are
+served as a guide the site wrote — recipes grouped under headings of its own,
+with no total, and rows carrying only a name and an address. `kind` says `guide`
+there, and `browse_recipes` on the same slug reads the topic's full listing with
+its total: `épinards` comes back as a guide of 32, and its listing holds 736.
 
 **Another recipe served in place of one is an absence, not an answer.** The words
 of a recipe's address are decorative and its number is not: asking for a number

@@ -105,11 +105,17 @@ export function fridgeUrl(ingredients: readonly string[]): string {
   return url.toString();
 }
 
-/** One page of a category or topic listing. The first page carries no number. */
+/**
+ * One page of a category or topic listing.
+ *
+ * The number is written even for the first page, which the site accepts for
+ * every topic. Some topics answer their unnumbered address with a guide of
+ * curated sections instead of a listing, and asking for the page by its number
+ * is what reaches the listing itself in both cases.
+ */
 export function listingUrl(slug: string, page: number): string {
-  const suffix = page > 1 ? `-page-${page}` : "";
   return new URL(
-    `${CATEGORY_ROOT_PATH}/${encodeURIComponent(slug)}${suffix}`,
+    `${CATEGORY_ROOT_PATH}/${encodeURIComponent(slug)}-page-${page}`,
     SITE_ORIGIN,
   ).toString();
 }

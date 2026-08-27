@@ -203,6 +203,35 @@ describe.skipIf(!process.env.PTC_LIVE)("Ptitchef listings, live", () => {
     ).toBeGreaterThan(report.rows_seen);
   });
 
+  it("answers some topics with a guide it wrote rather than with a listing", async () => {
+    // The site serves the unnumbered address of some topics as a curated guide,
+    // and the numbered one as the listing. If it stopped, a search for one of
+    // them would come back as a topic and this would say so.
+    const guide = structuredOf<ListingShape>(
+      await runSearchRecipes(client, { query: "épinards", limit: 5 }),
+    );
+
+    expect(guide.kind, "the site stopped answering this topic with a guide").toBe("guide");
+    expect(guide.total_available, "a guide started publishing a total").toBeNull();
+    expect(guide.result_count, "the guide came back with no row").toBeGreaterThan(0);
+    expect(guide.topic_slug, "a guide came back without naming its topic").toBeTruthy();
+  });
+
+  it("reaches the listing of such a topic by asking for its page by number", async () => {
+    const guide = structuredOf<ListingShape>(
+      await runSearchRecipes(client, { query: "épinards", limit: 1 }),
+    );
+    const listing = structuredOf<ListingShape>(
+      await runBrowseRecipes(client, { category: guide.topic_slug ?? "", limit: 5 }),
+    );
+
+    expect(listing.kind, "the numbered page of this topic served a guide too").toBe("category");
+    expect(
+      listing.total_available ?? 0,
+      "the listing of this topic stopped stating a total",
+    ).toBeGreaterThan(0);
+  });
+
   it("gives every row an identifier that leads back to its page", async () => {
     const report = structuredOf<ListingShape>(
       await runSearchRecipes(client, { query: "tarte aux pommes", limit: 5 }),

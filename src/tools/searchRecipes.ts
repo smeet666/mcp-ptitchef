@@ -29,7 +29,8 @@ export const searchRecipesDescription =
   "answer says which: it either sends the search to a category page of its own, whose total counts " +
   "what that category holds, or it answers on its own terms on a single page whose total is the " +
   "number of rows served. When a category answered, 'topic_slug' names it and browse_recipes reads " +
-  "its further pages. A search the site matched nothing for comes back with no row and a total of " +
+  "its further pages. Some topics come back as a guide the site wrote instead, grouped under headings " +
+  "of its own and carrying no total; browse_recipes on the same 'topic_slug' reads their full listing. A search the site matched nothing for comes back with no row and a total of " +
   "zero, which is an absence the site stated.";
 
 export const searchRecipesInput = {

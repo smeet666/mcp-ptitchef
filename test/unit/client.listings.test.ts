@@ -155,7 +155,7 @@ describe("PtitchefClient.browseRecipes", () => {
       clientFor(fake.fetchImpl).browseRecipes({ category: "brindilles" }),
     );
 
-    expect(onlyCall(fake)).toBe("https://www.ptitchef.com/recettes/brindilles");
+    expect(onlyCall(fake)).toBe("https://www.ptitchef.com/recettes/brindilles-page-1");
     expect(read.data.kind).toBe("category");
     expect(read.data.asked).toBe("brindilles");
   });
@@ -359,5 +359,36 @@ describe("several rows set aside at once", () => {
     await runWithClock(client.browseRecipes({ category: "brindilles" }));
 
     expect(written.join(" ")).toContain("1 row set aside");
+  });
+});
+
+describe("a topic the site answers with a guide", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("comes back as a guide from a search, whatever the address suggested", async () => {
+    const fake = fakeFetch(
+      fixture("listing-guide"),
+      "https://www.ptitchef.com/recettes/brindilles",
+    );
+    const read = await runWithClock(clientFor(fake.fetchImpl).searchRecipes("brindilles"));
+
+    expect(read.data.kind).toBe("guide");
+    expect(read.data.topic_slug).toBe("brindilles");
+  });
+
+  it("is stepped past by a browse, which asks for the page by its number", async () => {
+    // The unnumbered address of such a topic serves the guide, and the numbered
+    // one serves the listing. Asking by number reaches the listing every time.
+    const fake = fakeFetch(fixture("listing-first"));
+    await runWithClock(clientFor(fake.fetchImpl).browseRecipes({ category: "brindilles" }));
+
+    expect(onlyCall(fake)).toBe("https://www.ptitchef.com/recettes/brindilles-page-1");
   });
 });

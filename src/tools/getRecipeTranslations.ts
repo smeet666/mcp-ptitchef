@@ -5,7 +5,8 @@
  * Ptitchef is the French edition of a network of sites that publish the same
  * recipes, and each page names its counterparts. Those names are the site's own
  * claim that the two pages hold the same recipe, so they are passed on as
- * published rather than matched by title.
+ * published rather than matched by title. How many a page names is its own
+ * business, and no number is written here.
  */
 
 import { z } from "zod";
@@ -17,8 +18,9 @@ import { ok, SOURCE_NAME, type ToolResult } from "./shared.js";
 export const getRecipeTranslationsDescription =
   "List the other languages a Ptitchef recipe was published in, with the page of each. Pass the 'id' " +
   "of a row from a search or a listing. The pairing is the site's own: each page names its " +
-  "counterparts, and this repeats those names rather than matching titles. A recipe the site names no " +
-  "counterpart for comes back with an empty list, which is what it published.";
+  "counterparts, and this repeats those names rather than matching titles. How many there are belongs " +
+  "to the recipe: a recent one names more than twenty, from German to Hindi, and an older one names " +
+  "none. An empty list is what the site published, not a failure to read it.";
 
 export const getRecipeTranslationsInput = {
   id: z

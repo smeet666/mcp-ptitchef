@@ -26,6 +26,8 @@ const PAGE_SUFFIX = /^(.*)-page-(\d+)$/;
 /** The shape the site writes a recipe's address in. */
 const RECIPE_ID = /^\/recettes\/[^/]+\/[^/]+-fid-\d+$/;
 const LEADING_SLASH = /^\/+/;
+/** The number a recipe's address ends on. */
+const RECIPE_NUMBER = /-fid-(\d+)$/;
 
 export const isSlug = (value: string): boolean => SLUG.test(value);
 
@@ -157,6 +159,21 @@ export function recipeIdFrom(href: string): string | null {
 export function recipeUrl(id: string): string {
   const path = id.replace(LEADING_SLASH, "");
   return new URL(`/${path.split("/").map(encodeURIComponent).join("/")}`, SITE_ORIGIN).toString();
+}
+
+/**
+ * The number the site gives a recipe, which its address ends on.
+ *
+ * The words before it are decorative: the site answers an address whose words
+ * are wrong by serving the recipe the number names. It answers a number it does
+ * not hold by serving another recipe altogether, so this is what tells the two
+ * apart.
+ */
+export function recipeNumberOf(idOrHref: string): string | null {
+  const path = idOrHref.startsWith("http")
+    ? new URL(idOrHref).pathname
+    : `/${idOrHref.replace(LEADING_SLASH, "")}`;
+  return RECIPE_NUMBER.exec(path)?.[1] ?? null;
 }
 
 /** True when an identifier has the shape the site writes a recipe address in. */

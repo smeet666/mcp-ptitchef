@@ -104,6 +104,36 @@ them out.
 | `ingredients` | string[]          | One to five ingredients, in French. |
 | `limit`       | integer, optional | Rows to render, 20 by default.      |
 
+### `get_recipe`
+
+Reads one recipe, and rescales its ingredients on request.
+
+| Argument   | Type              | Meaning                                        |
+| ---------- | ----------------- | ---------------------------------------------- |
+| `id`       | string            | The `id` of a row from a search or a listing.  |
+| `servings` | integer, optional | Rescale the ingredients to this many servings. |
+
+Every line carries a `scaling` that says what the arithmetic did: `scaled` is
+exact, `rounded` was moved to stay usable, `unscaled` carries nothing that could
+be multiplied. Doubling `1 oeuf` gives `2 oeufs`; halving it gives `1 oeuf`
+marked `rounded`, because half an egg is not an amount a kitchen measures out.
+
+### `scale_ingredients`
+
+The same arithmetic, offline, on any French ingredient list whatever its source.
+
+| Argument                          | Type     | Meaning                              |
+| --------------------------------- | -------- | ------------------------------------ |
+| `ingredients`                     | string[] | The lines to rescale.                |
+| `factor`                          | number   | The multiplier to apply.             |
+| `from_servings` and `to_servings` | numbers  | Or the pair the factor is read from. |
+
+### `get_recipe_translations`
+
+Lists the other languages a recipe was published in. Ptitchef is the French
+edition of a network of six sites publishing the same recipes, and each page
+names its counterparts.
+
 ## What the answers refuse to overstate
 
 **A level the site substituted is not the level that was asked for.** An unknown
@@ -144,6 +174,26 @@ send a caller round the same rows for ever.
 **The fridge search counts far past what it serves.** It finds eighty-nine
 recipes for three ingredients, offers twenty-four of them on one page, and links
 no other. The answer states both figures and says the rest cannot be read.
+
+**Another recipe served in place of one is an absence, not an answer.** The words
+of a recipe's address are decorative and its number is not: asking for a number
+the site does not hold brings back an unrelated recipe, in HTTP 200 and full
+detail. The number that came back is compared with the number asked for.
+
+**Nothing is multiplied blindly.** A countable thing lands on the smallest share
+a cook takes out of one of it: a whole where half of one cannot be measured out,
+an egg; a half where half of one pours or splits, a sachet. A mass moves to a
+smaller unit before it is rounded, so a quantity under one never rounds to zero.
+A pinch keeps its own vocabulary and has its count multiplied, because the size
+of one is the cook's.
+
+**A list handed back unrescaled says so once, rather than line by line.** With no
+servings asked for there is no arithmetic, and marking every line `unscaled`
+would claim that none of them carries anything to multiply.
+
+**The cost the site estimates is repeated, never recomputed.** It is the site's
+own figure, and readers of the site dispute it as too low; the answer says so
+rather than quietly passing it on or silently dropping it.
 
 ## Install
 

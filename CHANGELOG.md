@@ -19,3 +19,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that was asked for.
 - `search_by_ingredients`, which reads the site's own fridge search and says how
   much of what it counts it will not serve.
+- `get_recipe`, which reads one recipe with its ingredients, method, times,
+  nutrition and estimated cost, rescaled to a number of servings on request and
+  saying of every line what the arithmetic did to it.
+- `scale_ingredients`, which does that arithmetic offline on any French
+  ingredient list, whatever its source.
+- `get_recipe_translations`, which lists the other languages a recipe was
+  published in, using the pairing the site itself publishes.

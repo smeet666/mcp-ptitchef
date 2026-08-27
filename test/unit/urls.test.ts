@@ -8,6 +8,7 @@ import {
   listingAt,
   listingUrl,
   recipeIdFrom,
+  recipeNumberOf,
   recipeUrl,
   searchUrl,
   slugFromHref,
@@ -153,5 +154,26 @@ describe("the identifier a recipe is read back by", () => {
     expect(isRecipeId(`/${id}`)).toBe(true);
     expect(isRecipeId("recettes/brindilles")).toBe(false);
     expect(isRecipeId("")).toBe(false);
+  });
+});
+
+describe("the number a recipe's address ends on", () => {
+  it("is read from an identifier and from a full address alike", () => {
+    expect(recipeNumberOf("recettes/plat/spaghetti-fid-1613987")).toBe("1613987");
+    expect(recipeNumberOf("/recettes/plat/spaghetti-fid-1613987")).toBe("1613987");
+    expect(recipeNumberOf("https://www.ptitchef.com/recettes/plat/spaghetti-fid-1613987")).toBe(
+      "1613987",
+    );
+  });
+
+  it("ignores the words in front of it, which the site treats as decorative", () => {
+    expect(recipeNumberOf("recettes/plat/nimportequoi-fid-1613987")).toBe(
+      recipeNumberOf("recettes/plat/spaghetti-fid-1613987"),
+    );
+  });
+
+  it("is nothing for an address ending on no number", () => {
+    expect(recipeNumberOf("recettes/brindilles")).toBeNull();
+    expect(recipeNumberOf("https://www.ptitchef.com/recettes")).toBeNull();
   });
 });

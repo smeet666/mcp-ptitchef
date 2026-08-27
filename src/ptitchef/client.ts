@@ -8,19 +8,23 @@
 
 import type { Config, Logger } from "../config.js";
 import { invalidInput, notFound } from "../errors.js";
-import type { CategoryReport, ListingKind, ListingReport, Read } from "../types.js";
+import type { CategoryReport, ListingKind, ListingReport, Read, Recipe } from "../types.js";
 import { Cache } from "./cache.js";
 import { fetchPage } from "./http.js";
 import { type ListingContext, parseCategoryPage, parseListingPage } from "./parse.js";
+import { parseRecipePage } from "./parseRecipe.js";
 import { RateLimiter } from "./rateLimiter.js";
 import {
   categoryUrl,
   fridgeUrl,
   isFamilyHref,
+  isRecipeId,
   isSlug,
   listingAt,
   listingUrl,
   MAX_FRIDGE_INGREDIENTS,
+  recipeNumberOf,
+  recipeUrl,
   searchUrl,
   slugFromHref,
   standingUrl,
@@ -58,6 +62,7 @@ export class PtitchefClient {
   private readonly limiter: RateLimiter;
   private readonly categories: Cache<StoredCategories>;
   private readonly listings: Cache<StoredListing>;
+  private readonly recipes: Cache<Recipe>;
 
   constructor(options: ClientOptions) {
     this.config = options.config;
@@ -72,6 +77,7 @@ export class PtitchefClient {
       options.config.cacheTtlMs,
       options.config.cacheMaxEntries,
     );
+    this.recipes = new Cache<Recipe>(options.config.cacheTtlMs, options.config.cacheMaxEntries);
   }
 
   /**
@@ -222,6 +228,48 @@ export class PtitchefClient {
       page: 1,
       url: servedUrl,
     }));
+  }
+
+  /**
+   * Read one recipe.
+   *
+   * The identifier is the page path a listing row carried, because the site
+   * serves a recipe from its own written address and from nowhere else. An
+   * identifier of another shape is refused here rather than sent, and a page the
+   * site answered from another address is reported as an absence rather than
+   * rendered as the recipe that was asked for.
+   */
+  async getRecipe(id: string): Promise<Read<Recipe>> {
+    const named = id.trim();
+    if (!isRecipeId(named)) {
+      throw invalidInput(
+        `"${named}" is not the identifier of a Ptitchef recipe.`,
+        "Take it from the 'id' of a row returned by search_recipes, browse_recipes or search_by_ingredients.",
+      );
+    }
+
+    const url = recipeUrl(named);
+    const stored = this.recipes.get(url);
+    if (stored) {
+      this.logger.debug(`served from the store: ${url}`);
+      return { data: stored, cached: true };
+    }
+
+    const page = await this.limiter.schedule(() => fetchPage(this.request(url)));
+    // The words of a recipe's address are decorative and its number is not: the
+    // site answers wrong words by serving the recipe the number names, and a
+    // number it does not hold by serving another recipe altogether. Comparing
+    // the numbers is what keeps the second from being rendered as the first.
+    if (recipeNumberOf(page.url) !== recipeNumberOf(named)) {
+      throw notFound(`Ptitchef holds no recipe numbered in "${named}".`, {
+        url,
+        hint: "Take the identifier from a row of a search or a listing: the site answers a number it does not hold by serving another recipe.",
+      });
+    }
+
+    const recipe = parseRecipePage(page.body, page.url);
+    this.recipes.set(url, recipe);
+    return { data: recipe, cached: false };
   }
 
   /** One listing read, stored under the address that produced it. */

@@ -128,3 +128,88 @@ export interface ListingReport {
   /** The address the listing was read from. */
   url: string;
 }
+
+/** One step of a method, with the photograph the site took of it. */
+export interface RecipeStep {
+  text: string;
+  image_url: string | null;
+}
+
+/** One question the site answers beside a recipe. */
+export interface RecipeQuestion {
+  question: string;
+  answer: string;
+}
+
+/** The same recipe on another site of the network that publishes it. */
+export interface RecipeTranslation {
+  /** The language tag the site publishes, such as "es" or "pt". */
+  language: string;
+  url: string;
+}
+
+/** Nutrition as the site publishes it, per the serving size it names. */
+export interface RecipeNutrition {
+  /** The serving the figures below describe, in the site's own wording. */
+  serving_size: string | null;
+  calories: string | null;
+  carbohydrate: string | null;
+  fat: string | null;
+  saturated_fat: string | null;
+  protein: string | null;
+  fibre: string | null;
+  sugar: string | null;
+  sodium: string | null;
+}
+
+/**
+ * One recipe, as the site publishes it.
+ *
+ * Every field is what the page states. A time it states nothing for is null
+ * rather than inferred from the steps, and a figure it publishes as a string
+ * with its unit is repeated that way rather than turned into a number whose
+ * unit would then be this server's own claim.
+ */
+export interface Recipe {
+  /** Pass this back to read the recipe again. */
+  id: string;
+  title: string;
+  url: string;
+  description: string | null;
+  image_url: string | null;
+  /** The site's own wording, such as "Dessert". */
+  category: string | null;
+  /** The site's own wording for the cuisine, such as "Fr". */
+  cuisine: string | null;
+  /** The site's own wording, such as "facile". Null when the page states none. */
+  difficulty: string | null;
+  author: string | null;
+  author_url: string | null;
+  published: string | null;
+  modified: string | null;
+  /** 1 to 5, as the site states it. */
+  rating: number | null;
+  rating_count: number | null;
+  review_count: number | null;
+  prep_minutes: number | null;
+  cook_minutes: number | null;
+  total_minutes: number | null;
+  /** Servings the page states, and the wording it states them in. */
+  yield_count: number | null;
+  yield_text: string | null;
+  /** The ingredient lines as published, in the order the page lists them. */
+  ingredients: string[];
+  steps: RecipeStep[];
+  /**
+   * True when the site published its method as one block of prose rather than
+   * as numbered steps, so the single step below is that block.
+   */
+  steps_are_one_block: boolean;
+  nutrition: RecipeNutrition | null;
+  /** What the site estimates the ingredients cost, with the currency it names. */
+  estimated_cost: string | null;
+  /** The words the site files the recipe under. */
+  keywords: string[];
+  faq: RecipeQuestion[];
+  translations: RecipeTranslation[];
+}

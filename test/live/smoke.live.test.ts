@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { createLogger, loadConfig } from "../../src/config.js";
 import { PtitchefClient } from "../../src/ptitchef/client.js";
 import { runBrowseRecipes } from "../../src/tools/browseRecipes.js";
+import { runGetRecipe } from "../../src/tools/getRecipe.js";
+import { runGetRecipeTranslations } from "../../src/tools/getRecipeTranslations.js";
 import { runListCategories } from "../../src/tools/listCategories.js";
 import { runSearchByIngredients } from "../../src/tools/searchByIngredients.js";
 import { runSearchRecipes } from "../../src/tools/searchRecipes.js";
@@ -209,6 +211,106 @@ describe.skipIf(!process.env.PTC_LIVE)("Ptitchef listings, live", () => {
     for (const row of report.results) {
       expect(row.id, "a row came back without an identifier").toBeTruthy();
       expect(row.url, "a row's address does not carry its identifier").toContain(row.id);
+    }
+  });
+});
+
+interface RecipeShape {
+  id: string;
+  title: string;
+  yield: { original_count: number | null; requested: number | null; factor: number | null };
+  ingredients: Array<{ original: string; text: string; scaling: string }>;
+  steps: Array<{ text: string }>;
+  steps_are_one_block: boolean;
+  prep_minutes: number | null;
+  total_minutes: number | null;
+  nutrition: { calories: string | null } | null;
+  estimated_cost: string | null;
+  translations: Array<{ language: string; url: string }>;
+}
+
+/** A recipe the site holds, found rather than written down here. */
+async function anyRecipeId(): Promise<string> {
+  const listing = structuredOf<ListingShape>(
+    await runSearchRecipes(client, { query: "tarte aux pommes", limit: 5 }),
+  );
+  const first = listing.results[0];
+  if (first === undefined) {
+    throw new Error("the site returned no row to read a recipe from");
+  }
+  return first.id;
+}
+
+describe.skipIf(!process.env.PTC_LIVE)("Ptitchef recipes, live", () => {
+  it("reads a recipe from the identifier a listing row carried", async () => {
+    const recipe = structuredOf<RecipeShape>(
+      await runGetRecipe(client, { id: await anyRecipeId() }),
+    );
+
+    expect(recipe.title, "a recipe came back without a title").toBeTruthy();
+    expect(recipe.ingredients.length, "a recipe came back with no ingredient line").toBeGreaterThan(
+      0,
+    );
+    expect(recipe.steps.length, "a recipe came back with no step").toBeGreaterThan(0);
+  });
+
+  it("carries the fields that make this site worth reading", async () => {
+    // The cost per recipe and the nutrition per serving are what this site
+    // publishes and its neighbours do not. If either stopped, the answer would
+    // quietly lose the reason for reading it.
+    const recipe = structuredOf<RecipeShape>(
+      await runGetRecipe(client, { id: await anyRecipeId() }),
+    );
+
+    expect(recipe.estimated_cost, "the site stopped estimating a cost").toBeTruthy();
+    expect(recipe.nutrition?.calories, "the site stopped publishing calories").toBeTruthy();
+    expect(recipe.total_minutes, "the site stopped stating a total time").not.toBeNull();
+  });
+
+  it("rescales the ingredients by the ratio the page states", async () => {
+    const id = await anyRecipeId();
+    const published = structuredOf<RecipeShape>(await runGetRecipe(client, { id }));
+    const servings = (published.yield.original_count ?? 1) * 2;
+    const doubled = structuredOf<RecipeShape>(await runGetRecipe(client, { id, servings }));
+
+    expect(doubled.yield.requested).toBe(servings);
+    expect(doubled.yield.factor, "the factor left the ratio the page states").toBe(2);
+    expect(
+      doubled.ingredients.some((line) => line.text !== line.original),
+      "doubling this recipe moved no line at all",
+    ).toBe(true);
+  });
+
+  it("refuses an identifier of another shape without asking the site", async () => {
+    await expect(runGetRecipe(client, { id: "tarte-aux-pommes" })).rejects.toMatchObject({
+      code: "invalid_input",
+    });
+  });
+
+  it("reports an identifier the site does not hold as an absence", async () => {
+    await expect(
+      runGetRecipe(client, { id: "recettes/plat/rien-du-tout-fid-999999999" }),
+    ).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  it("names the other languages a recent recipe was published in", async () => {
+    // The network publishes the same recipe on five neighbouring sites and each
+    // page names its counterparts. A recent recipe is where that pairing lives.
+    const latest = structuredOf<ListingShape>(
+      await runBrowseRecipes(client, { listing: "latest", limit: 5 }),
+    );
+    const first = latest.results[0];
+    if (first === undefined) {
+      throw new Error("the standing list returned no row");
+    }
+
+    const out = structuredOf<{ translations: Array<{ language: string; url: string }> }>(
+      await runGetRecipeTranslations(client, { id: first.id }),
+    );
+
+    for (const one of out.translations) {
+      expect(one.language, "a counterpart came back without a language").toBeTruthy();
+      expect(one.url, "a counterpart came back without an address").toMatch(/^https:\/\//);
     }
   });
 });

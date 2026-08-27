@@ -531,3 +531,27 @@ describe("the address a page was served from", () => {
     expect((await success(pageFrom(new Response("the page", { status: 200 })))).url).toBe(asked);
   });
 });
+
+describe("a read the site redirected off its own site", () => {
+  it("is refused rather than read, since every other guard reads a path", () => {
+    // A page from elsewhere would pass every check against a substituted page,
+    // all of which compare paths, and be credited to this site.
+    const elsewhere = new Response("someone else's page", { status: 200 });
+    Object.defineProperty(elsewhere, "url", { value: "https://ailleurs.invalid/recettes/x" });
+    const rec = recorder(always(() => elsewhere));
+
+    return expect(
+      failure(
+        fetchPage({
+          url: "https://www.ptitchef.com/recettes/brindilles",
+          userAgent: "test-agent/1.0",
+          timeoutMs: 20_000,
+          maxRetries: 0,
+          limiter: new RateLimiter({ intervalMs: 1000 }),
+          logger: silentLogger(),
+          fetchImpl: rec.impl,
+        }),
+      ),
+    ).resolves.toMatchObject({ code: "network_error" });
+  });
+});

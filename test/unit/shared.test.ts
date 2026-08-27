@@ -79,12 +79,25 @@ describe("ok", () => {
     const lines = text.split("\n");
 
     expect(text.length).toBeLessThanOrEqual(MAX_TEXT_CHARS);
-    expect(lines.at(-3)).toBe("Note: a first note");
-    expect(lines.at(-2)).toBe("Note: a second note");
+    expect(lines.at(-4)).toBe("Note: a first note");
+    expect(lines.at(-3)).toBe("Note: a second note");
     expect(lines.at(-1)).toBe(ATTRIBUTION);
     expect(text).toContain("…");
     // The structured payload keeps the text as it was published.
     expect(result.structuredContent).toEqual(structured);
+  });
+
+  it("says that a body it had to cut was cut", () => {
+    // Every other cut this server makes is announced. A client rendering only
+    // this block would otherwise read a broken-off answer as the whole of it.
+    const text = onlyText(ok({ total: 1 }, "z".repeat(MAX_TEXT_CHARS * 3)));
+
+    expect(text).toMatch(/was cut to fit/i);
+    expect(text.length).toBeLessThanOrEqual(MAX_TEXT_CHARS);
+  });
+
+  it("says nothing of a cut on a body that fits", () => {
+    expect(onlyText(ok({ total: 1 }, "short"))).not.toMatch(/was cut to fit/i);
   });
 
   // Quoted rather than indented: a reader trims a line before reading it, and a

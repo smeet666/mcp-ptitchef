@@ -14,7 +14,7 @@ import { z } from "zod";
 import { PtitchefError } from "../errors.js";
 import type { PtitchefClient } from "../ptitchef/client.js";
 import { STANDING_NAMES } from "../ptitchef/urls.js";
-import { strictInput } from "./arguments.js";
+import { refusalMessage, strictInput } from "./arguments.js";
 import {
   DEFAULT_LIMIT,
   limitRows,
@@ -72,10 +72,7 @@ export async function runBrowseRecipes(
 ): Promise<ToolResult> {
   const parsed = browseRecipesArgs.safeParse(args);
   if (!parsed.success) {
-    throw new PtitchefError(
-      "invalid_input",
-      parsed.error.issues.map((issue) => issue.message).join(" "),
-    );
+    throw new PtitchefError("invalid_input", refusalMessage(parsed.error.issues));
   }
 
   const { category, listing, page, limit } = parsed.data;
@@ -85,8 +82,8 @@ export async function runBrowseRecipes(
     throw new PtitchefError(
       "invalid_input",
       category === undefined
-        ? "[invalid_input] Name either 'category' or 'listing'."
-        : "[invalid_input] Name either 'category' or 'listing', not both.",
+        ? "Name either 'category' or 'listing'."
+        : "Name either 'category' or 'listing'. Naming both asks two questions, and answering the first would drop the second.",
     );
   }
 
@@ -98,6 +95,8 @@ export async function runBrowseRecipes(
   const { rendered, note } = limitRows(read.data, limit ?? DEFAULT_LIMIT);
   const notes = notesFor(read.data, {
     ...(page === undefined ? {} : { askedPage: page }),
+    ...(category === undefined ? {} : { askedSlug: category.trim() }),
+    maxLimit: MAX_LIMIT,
     ...(read.skipped ? { skipped: read.skipped } : {}),
     extra: note,
   });

@@ -13,7 +13,7 @@ const row = (over: Partial<RecipeRow> = {}): RecipeRow => ({
   category: "Plat",
   difficulty: "facile",
   total_minutes: 30,
-  calories: 295,
+  calories: "295 kcal / 1 part",
   ingredients_preview: null,
   ...over,
 });
@@ -26,6 +26,7 @@ const report = (over: Partial<ListingReport> = {}): ListingReport => ({
   results: [row()],
   result_count: 1,
   rows_seen: 1,
+  folded: 0,
   total_available: 306,
   page: 1,
   single_page: false,
@@ -40,6 +41,8 @@ describe("what a listing's total counts", () => {
     ["category", /across all its pages/i],
     ["standing", /standing list/i],
     ["fridge", /from these ingredients/i],
+    ["recipe", /precise enough to name one recipe/i],
+    ["unmatched", /did not run/i],
   ] as const)("is said for a %s listing", (kind, wording) => {
     expect(notesFor(report({ kind })).join(" ")).toMatch(wording);
   });
@@ -175,5 +178,62 @@ describe("limitRows", () => {
 
   it("says nothing about a cut that left nothing out", () => {
     expect(limitRows(report(), 50).note).toEqual([]);
+  });
+});
+
+describe("a listing the site answered from another address", () => {
+  it("names what was asked and what answered", () => {
+    const notes = notesFor(report({ topic_slug: "recette-aux-epinards" }), {
+      askedSlug: "epinards",
+    }).join(" ");
+
+    expect(notes).toContain('"epinards" was asked for');
+    expect(notes).toContain("recette-aux-epinards");
+  });
+
+  it("says nothing when the site answered from the address asked for", () => {
+    expect(notesFor(report(), { askedSlug: "brindilles" }).join(" ")).not.toContain(
+      "was asked for and the site answered from",
+    );
+  });
+});
+
+describe("a total that is the number of rows served", () => {
+  it("says so, read off the two figures rather than assumed", () => {
+    const notes = notesFor(report({ total_available: 24, rows_seen: 24 })).join(" ");
+
+    expect(notes).toContain("the number of rows the site served");
+  });
+
+  it("says nothing of the sort when the site counts more than it served", () => {
+    // The same sentence on both would be false on one of them.
+    const notes = notesFor(report({ total_available: 286, rows_seen: 24 })).join(" ");
+
+    expect(notes).not.toContain("the number of rows the site served");
+  });
+});
+
+describe("rows a guide named twice", () => {
+  it("are counted, in the singular for one", () => {
+    expect(notesFor(report({ folded: 1 })).join(" ")).toContain("1 row names a recipe");
+  });
+
+  it("are counted, in the plural for several", () => {
+    expect(notesFor(report({ folded: 3 })).join(" ")).toContain("3 rows name recipes");
+  });
+});
+
+describe("a cut no further call can undo", () => {
+  it("says so rather than telling a caller to raise a limit already at its top", () => {
+    const many = { ...report(), results: Array.from({ length: 120 }, () => row()) };
+    const cut = limitRows(many, 100);
+
+    expect(cut.note.join(" ")).toMatch(/No call to this tool reaches the rest/i);
+  });
+
+  it("tells a caller to raise the limit while raising it would help", () => {
+    const many = { ...report(), results: Array.from({ length: 120 }, () => row()) };
+
+    expect(limitRows(many, 20).note.join(" ")).toContain("Raise 'limit'");
   });
 });

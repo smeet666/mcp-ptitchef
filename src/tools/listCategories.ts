@@ -12,7 +12,7 @@ import { z } from "zod";
 import { PtitchefError } from "../errors.js";
 import type { PtitchefClient } from "../ptitchef/client.js";
 import type { Category, CategoryReport } from "../types.js";
-import { strictInput } from "./arguments.js";
+import { refusalMessage, strictInput } from "./arguments.js";
 import { ok, SOURCE_NAME, type ToolResult } from "./shared.js";
 
 export const listCategoriesDescription =
@@ -102,6 +102,12 @@ const SAMPLE_NOTE =
 const OPEN_NOTE =
   "Pass a slug back as 'family' to list what it holds, and use an entry's page to reach its recipes.";
 
+const LEAF_NOTE =
+  "No entry here opens onto further categories. Pass a slug to browse_recipes to read the recipes under it; passing it as 'family' comes back as an absence.";
+
+const EMPTY_NOTE =
+  "The site publishes this level and lists nothing under it, which is what it answered rather than a failure to read it.";
+
 interface Rendering {
   rendered: Category[];
   notes: string[];
@@ -130,7 +136,15 @@ function limitTo(report: CategoryReport, limit: number, skipped: string[]): Rend
       `${skipped.length} ${skipped.length === 1 ? "entry was" : "entries were"} set aside: ${skipped.join("; ")}.`,
     );
   }
-  notes.push(OPEN_NOTE);
+  if (rendered.length === 0) {
+    notes.push(EMPTY_NOTE);
+  } else if (rendered.some((entry) => entry.is_family)) {
+    notes.push(OPEN_NOTE);
+  } else {
+    // Telling a caller to open one of these would send them to an absence: the
+    // tool answers a family, and none of these is one.
+    notes.push(LEAF_NOTE);
+  }
 
   return { rendered, notes };
 }
@@ -170,10 +184,7 @@ export async function runListCategories(
     // one error shape, so a refusal reads the same whichever layer produced it.
     // Every grievance, rather than the first: a call refused on two arguments
     // that names one sends a caller back for a second refusal.
-    throw new PtitchefError(
-      "invalid_input",
-      parsed.error.issues.map((issue) => issue.message).join(" "),
-    );
+    throw new PtitchefError("invalid_input", refusalMessage(parsed.error.issues));
   }
 
   const family = parsed.data.family ?? null;

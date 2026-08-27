@@ -39,8 +39,23 @@ export function categoryUrl(family: string | null): string {
   return new URL(`${CATEGORY_FAMILY_PREFIX}${encodeURIComponent(family)}`, SITE_ORIGIN).toString();
 }
 
-/** Turn a link the site printed into an address a caller can open. */
-export const absolute = (href: string): string => new URL(href, SITE_ORIGIN).toString();
+/**
+ * Turn a link the site printed into an address a caller can open.
+ *
+ * The origin is imposed rather than merely supplied as a base: a protocol
+ * relative link, an absolute one, or a scheme of its own would otherwise carry a
+ * reader off this site under a field this server labels as the site's own page.
+ * A link leading elsewhere is not an address of Ptitchef, and none is returned.
+ */
+export function absolute(href: string): string | null {
+  let resolved: URL;
+  try {
+    resolved = new URL(href, SITE_ORIGIN);
+  } catch {
+    return null;
+  }
+  return resolved.origin === SITE_ORIGIN ? resolved.toString() : null;
+}
 
 /**
  * The slug a caller passes back, read off a link the site printed.
@@ -59,6 +74,17 @@ export function slugFromHref(href: string): string | null {
   }
   return null;
 }
+
+/**
+ * True when an address is the site's own recipes home page.
+ *
+ * The site serves it for a search it could make nothing of, so an answer coming
+ * back from here is one it did not search rather than one it found nothing for.
+ */
+export const isCategoryRoot = (href: string): boolean =>
+  new URL(href, SITE_ORIGIN).pathname.replace(TRAILING_SLASH, "") === CATEGORY_ROOT_PATH;
+
+const TRAILING_SLASH = /\/+$/;
 
 /** True when a link the site printed leads to a family rather than to recipes. */
 export const isFamilyHref = (href: string): boolean =>
@@ -157,7 +183,12 @@ export function listingAt(href: string): { slug: string; page: number } | null {
  * So the whole path is the identifier, which is what the caller hands back.
  */
 export function recipeIdFrom(href: string): string | null {
-  const path = new URL(href, SITE_ORIGIN).pathname;
+  let path: string;
+  try {
+    path = new URL(href, SITE_ORIGIN).pathname;
+  } catch {
+    return null;
+  }
   return RECIPE_ID.test(path) ? path.replace(LEADING_SLASH, "") : null;
 }
 
@@ -183,5 +214,15 @@ export function recipeNumberOf(idOrHref: string): string | null {
 }
 
 /** True when an identifier has the shape the site writes a recipe address in. */
-export const isRecipeId = (id: string): boolean =>
-  RECIPE_ID.test(`/${id.replace(LEADING_SLASH, "")}`);
+export const isRecipeId = (id: string): boolean => {
+  const path = `/${id.replace(LEADING_SLASH, "")}`;
+  return RECIPE_ID.test(path) && !DOT_SEGMENT.test(path);
+};
+
+/**
+ * A segment that walks up out of the path it was written in.
+ *
+ * The site names no page with one. Left through, such a path is read one level
+ * up and lands outside the recipes, on addresses the site asks not to be read.
+ */
+const DOT_SEGMENT = /(?:^|\/)\.{1,2}(?:\/|$)/;

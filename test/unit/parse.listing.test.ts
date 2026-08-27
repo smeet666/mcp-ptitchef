@@ -55,7 +55,7 @@ describe("one page of a listing", () => {
     expect(first?.category).toBe("Accompagnement");
     expect(first?.difficulty).toBe("moyen");
     expect(first?.total_minutes).toBe(30);
-    expect(first?.calories).toBe(295);
+    expect(first?.calories).toBe("295 kcal / 1 part");
     expect(second?.difficulty).toBe("facile");
   });
 
@@ -204,9 +204,14 @@ describe("a listing written every awkward way the site writes one", () => {
     expect(parsed.report.results[0]?.difficulty).toBeNull();
   });
 
-  it("leaves a duration and a calorie count it cannot read null", () => {
+  it("leaves a duration it cannot read null", () => {
     expect(parsed.report.results[0]?.total_minutes).toBeNull();
-    expect(parsed.report.results[0]?.calories).toBeNull();
+  });
+
+  it("repeats a calorie figure it cannot read as the row wrote it", () => {
+    // Reading a number out of it would invent one; dropping it would hide what
+    // the row states.
+    expect(parsed.report.results[0]?.calories).toBe("pas un nombre");
   });
 
   it("leaves an empty image and an empty ingredient line null", () => {
@@ -230,5 +235,28 @@ describe("a listing written every awkward way the site writes one", () => {
 
   it("leaves the heading null where the page carries none", () => {
     expect(parsed.report.title).toBeNull();
+  });
+});
+
+describe("a row linking away from the site", () => {
+  it("is set aside, since its address is no page of this site to hand back", () => {
+    const parsed = parseListingPage(read("listing-off-site.html"), context());
+
+    expect(parsed.report.result_count).toBe(1);
+    expect(parsed.skipped.join(" ")).toMatch(/links away from this site/i);
+  });
+});
+
+describe("a page stating a count and carrying no listing this can read", () => {
+  it("raises parse_failure naming the count, rather than rendering an absence", () => {
+    // Rendering it would answer "no recipe, and the site says it holds 3200",
+    // which reports a failure to read as a result.
+    try {
+      parseListingPage(read("listing-counted-unread.html"), context());
+      throw new Error("the page was read");
+    } catch (error) {
+      expect((error as { code?: string }).code).toBe("parse_failure");
+      expect((error as Error).message).toContain("3200");
+    }
   });
 });

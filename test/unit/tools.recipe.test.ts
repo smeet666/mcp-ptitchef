@@ -182,7 +182,9 @@ describe("get_recipe with servings", () => {
     expect(recipe.yield.original_count).toBe(4);
     expect(recipe.yield.requested).toBe(8);
     expect(recipe.yield.factor).toBe(2);
-    expect(recipe.yield.unit).toBe("parts");
+    // The corpus writes a bare number, which is a count the page gives no
+    // wording for; a unit here would be one this server chose.
+    expect(recipe.yield.unit).toBeNull();
   });
 
   it("reads a line the site's editor left a list marker on", async () => {
@@ -282,7 +284,7 @@ describe("get_recipe on an identifier the site cannot answer", () => {
   it("refuses an argument it does not declare", async () => {
     await expect(
       runGetRecipe(clientServing(fixture("recipe-full"), PAGE), args({ id: ID, portions: 8 })),
-    ).rejects.toThrow(/^\[invalid_input]/);
+    ).rejects.toMatchObject({ code: "invalid_input" });
   });
 });
 
@@ -320,7 +322,7 @@ describe("get_recipe_translations", () => {
         clientServing(fixture("recipe-full"), PAGE),
         args({ id: ID, language: "es" }),
       ),
-    ).rejects.toThrow(/^\[invalid_input]/);
+    ).rejects.toMatchObject({ code: "invalid_input" });
   });
 });
 
@@ -352,18 +354,18 @@ describe("scale_ingredients", () => {
     expect(out.factor).toBe(1.5);
   });
 
-  it("says which of the two it applied when both were given", () => {
-    const out = structuredOf<{ factor: number; notes: string[] }>(
-      runScaleIngredients({
-        ingredients: ["200 g de farine"],
-        factor: 3,
-        from_servings: 4,
-        to_servings: 6,
-      }),
-    );
+  it("refuses a call stating the factor twice", () => {
+    // Applying one and ignoring the other would answer a question the caller
+    // did not ask, on a call that states two.
+    const result = runScaleIngredients({
+      ingredients: ["200 g de farine"],
+      factor: 3,
+      from_servings: 4,
+      to_servings: 6,
+    });
 
-    expect(out.factor).toBe(3);
-    expect(out.notes.join(" ")).toContain("'factor' was applied");
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toMatch(/state the factor twice/i);
   });
 
   it("refuses a call giving neither", () => {
@@ -480,5 +482,55 @@ describe("a rescale where every line came out exact", () => {
 
     expect(recipe.ingredients.every((line) => line.scaling === "scaled")).toBe(true);
     expect(recipe.notes.join(" ")).not.toMatch(/no usable quantity/i);
+  });
+});
+
+describe("a recipe the page lists no ingredient for", () => {
+  it("announces no factor, since there was nothing to multiply", async () => {
+    const recipe = structuredOf<RecipeOut>(
+      await runWithClock(
+        runGetRecipe(
+          clientServing(fixture("recipe-no-ingredients"), PAGE),
+          args({ id: ID, servings: 16 }),
+        ),
+      ),
+    );
+
+    expect(recipe.ingredients).toEqual([]);
+    expect(recipe.yield.factor).toBeNull();
+    expect(recipe.notes.join(" ")).toMatch(/nothing to rescale/i);
+  });
+});
+
+describe("the cost the site estimates", () => {
+  it("is stated for the servings the page published it for", async () => {
+    const recipe = structuredOf<RecipeOut>(
+      await runWithClock(
+        runGetRecipe(clientServing(fixture("recipe-full"), PAGE), args({ id: ID })),
+      ),
+    );
+
+    expect(recipe.notes.join(" ")).toContain("for 4");
+    expect(recipe.notes.join(" ")).toMatch(/not recomputed/i);
+  });
+
+  it("says only that it is the site's figure where the page states no servings", async () => {
+    const bare = structuredOf<RecipeOut>(
+      await runWithClock(
+        runGetRecipe(clientServing(fixture("recipe-odd"), PAGE), args({ id: ID })),
+      ),
+    );
+
+    expect(bare.notes.join(" ")).toMatch(/repeated as published rather than recomputed/i);
+  });
+
+  it("says nothing of a cost the page states none of", async () => {
+    const bare = structuredOf<RecipeOut>(
+      await runWithClock(
+        runGetRecipe(clientServing(fixture("recipe-bare"), PAGE), args({ id: ID })),
+      ),
+    );
+
+    expect(bare.notes.join(" ")).not.toMatch(/estimated cost/i);
   });
 });

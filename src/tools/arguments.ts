@@ -126,3 +126,20 @@ function nearestArgument(key: string, declared: readonly string[]): string | und
   // Up to a third of the name may differ. Past that the match is a guess.
   return shortest <= Math.max(1, Math.floor(flat.length / 3)) ? closest : undefined;
 }
+
+/**
+ * The one message a refusal carries, built from every grievance at once.
+ *
+ * Each issue already opens with the code, because the schema refuses on its own
+ * before any tool code runs and a caller has to find the vocabulary there too.
+ * The rendering layer opens the message it is given with that same code, so the
+ * copies the issues carry are taken off here and one is written back on.
+ *
+ * Every grievance rather than the first: a call refused on two arguments that
+ * names one sends a caller back for a second refusal.
+ */
+export function refusalMessage(issues: readonly { message: string }[]): string {
+  return issues.map((issue) => issue.message.replace(CODE_PREFIX, "")).join(" ");
+}
+
+const CODE_PREFIX = /^\[invalid_input]\s*/;

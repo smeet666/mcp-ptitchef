@@ -79,8 +79,11 @@ export interface RecipeRow {
   difficulty: string | null;
   /** Minutes the row states for the whole recipe. Null when it states none. */
   total_minutes: number | null;
-  /** Calories per serving, as the row states them. Null when it states none. */
-  calories: number | null;
+  /**
+   * The calorie figure as the row prints it, with its unit and the serving it
+   * names, such as "295 kcal / 1 part". Null when the row states none.
+   */
+  calories: string | null;
   /** The opening of the ingredient list, as the row prints it. */
   ingredients_preview: string | null;
 }
@@ -109,6 +112,16 @@ export const LISTING_KINDS = [
   "standing",
   /** Recipes found from a list of ingredients. */
   "fridge",
+  /**
+   * A single recipe the site opened in place of a listing, judging the words
+   * precise enough to name one.
+   */
+  "recipe",
+  /**
+   * The site's own recipes home page, which it serves for words it could make
+   * nothing of. It lists no result for them.
+   */
+  "unmatched",
 ] as const;
 
 export type ListingKind = (typeof LISTING_KINDS)[number];
@@ -134,6 +147,14 @@ export interface ListingReport {
   result_count: number;
   /** Rows the site served on this page, before anything was set aside. */
   rows_seen: number;
+  /**
+   * Rows naming a recipe the answer already holds.
+   *
+   * A guide lists one recipe under two headings where it belongs to both. Such
+   * a row is counted in `rows_seen`, which states what the page served, and
+   * rendered once.
+   */
+  folded: number;
   /** Recipes the site says this listing holds. Null when it published none. */
   total_available: number | null;
   /** The page that was read. */
@@ -212,6 +233,14 @@ export interface Recipe {
   /** Servings the page states, and the wording it states them in. */
   yield_count: number | null;
   yield_text: string | null;
+  /**
+   * What the page counts its servings in, in its own wording.
+   *
+   * It writes "6 personnes" on one recipe and "15 pièces" on another, and a
+   * recipe yielding pieces cannot be described as serving people. Null where it
+   * states a bare number.
+   */
+  yield_unit: string | null;
   /** The ingredient lines as published, in the order the page lists them. */
   ingredients: string[];
   steps: RecipeStep[];

@@ -36,11 +36,12 @@ describe("the guide the site writes for some topics", () => {
     ]);
   });
 
-  it("counts a recipe listed under two headings once", () => {
-    // The page names it twice because it belongs to both, and counting it twice
-    // would state a length the page has not.
+  it("renders a recipe listed under two headings once, and counts the row", () => {
+    // The page names it twice because it belongs to both. It is rendered once,
+    // and `rows_seen` still states what the page served.
     expect(parsed.report.result_count).toBe(4);
-    expect(parsed.report.rows_seen).toBe(5);
+    expect(parsed.report.rows_seen).toBe(6);
+    expect(parsed.report.folded).toBe(1);
   });
 
   it("sets aside a row carrying no address, and says so", () => {
@@ -105,5 +106,14 @@ describe("a row of a guide stating less than its neighbours", () => {
     // Nobody having rated it and the page not saying are different claims, and
     // a zero here would make the first out of the second.
     expect(bare?.rating_count).toBeNull();
+  });
+});
+
+describe("a guide the page never closes the body of", () => {
+  it("is read to its last character rather than to nothing", () => {
+    const parsed = parseListingPage(read("listing-guide-no-body-end.html"), context());
+
+    expect(parsed.report.kind).toBe("guide");
+    expect(parsed.report.result_count).toBe(1);
   });
 });

@@ -24,8 +24,20 @@ const recipeRowSchema = z.object({
       "1 to 5, as the site states it. The page also draws it rounded to a whole star, and the two " +
         "disagree by design; this is the figure the site computed. Null when it states none.",
     ),
-  rating_count: z.number().int().nullable(),
-  review_count: z.number().int().nullable(),
+  rating_count: z
+    .number()
+    .int()
+    .nullable()
+    .describe("How many readers rated it. Null when the site published no figure."),
+  review_count: z
+    .number()
+    .int()
+    .nullable()
+    .describe(
+      "How many readers wrote a review. It counts a different thing from 'rating_count', and the " +
+        "two are never added: a reader who wrote is a reader who rated. Null when the site " +
+        "published no figure.",
+    ),
   category: z.string().nullable().describe("The site's own wording, such as 'Plat'."),
   difficulty: z.string().nullable().describe("The site's own wording, such as 'facile'."),
   total_minutes: z
@@ -33,12 +45,25 @@ const recipeRowSchema = z.object({
     .int()
     .nullable()
     .describe("Minutes the row states for the whole recipe."),
-  calories: z.number().nullable().describe("Calories per serving, as the row states them."),
+  calories: z
+    .string()
+    .nullable()
+    .describe(
+      "The calorie figure as the row prints it, with its unit and the serving it names, such as " +
+        "'295 kcal / 1 part'. Rows of one listing can name different servings, so two figures are " +
+        "comparable only where the serving they name is the same.",
+    ),
   ingredients_preview: z.string().nullable().describe("The opening of the ingredient list."),
 });
 
 export const listingOutputShape = {
-  asked: z.string().describe("What was asked for: a search, a category, or a list of ingredients."),
+  asked: z
+    .string()
+    .describe(
+      "What was asked for: a search, a category, or a list of ingredients. 'query' carries the same " +
+        "value under the name every source of recipes publishes it in.",
+    ),
+  query: z.string().describe("What was asked for, under the name a search publishes it in."),
   kind: z
     // Read from the one list that declares them, so a kind added to the server
     // cannot be refused by the schema that publishes it.
@@ -61,6 +86,13 @@ export const listingOutputShape = {
     .number()
     .int()
     .describe("Rows the site served on this page, before any were set aside."),
+  folded: z
+    .number()
+    .int()
+    .describe(
+      "Rows naming a recipe already held. A guide lists one recipe under two headings where it " +
+        "belongs to both; such a row is counted in 'rows_seen' and rendered once.",
+    ),
   total_available: z
     .number()
     .int()
@@ -71,31 +103,50 @@ export const listingOutputShape = {
     .boolean()
     .describe("True when the site serves this listing on one page and offers no further one."),
   url: z.string().describe("The address the listing was read from."),
-  source: z.string(),
-  notes: z.array(z.string()),
+  source: z.string().describe("The site this answer was read from. Credit it when showing a row."),
+  notes: z
+    .array(z.string())
+    .describe(
+      "What qualifies this answer: what its total counts, what it left out, and where the site " +
+        "answered from an address other than the one asked for. Read these before quoting a figure.",
+    ),
 } as const;
 
 /** What each kind of listing counts, said rather than left to the reader. */
 const TOTAL_MEANS: Readonly<Record<ListingReport["kind"], string>> = {
   topic:
     "The site answered this search from a category page of its own, so the total counts what that category holds rather than what matched the words that were typed.",
-  free_text:
-    "The site answered this search on its own terms, on one page, and the total is the number of rows it served.",
+  free_text: "The site answered this search on its own terms rather than from a page of its own.",
   category: "The total counts what this category holds across all its pages.",
   guide:
-    "The site answered with a guide it wrote for this topic: recipes grouped under headings of its own, with no total and no further page. Its rows carry a name and an address and nothing else. Pass 'topic_slug' to browse_recipes for the full listing of the topic, which states how many recipes it holds.",
+    "The site answered with a guide it wrote for this topic: recipes grouped under headings of its own, with no total and no further page. A row of a guide carries its name, its address, its picture and how many readers rated it; the guide draws a rating and computes none, so no rating is published from it. Pass 'topic_slug' to browse_recipes for the full listing of the topic, which states how many recipes it holds.",
   standing:
     "This is one of the site's own standing lists, so the total is the length of that list rather than a count of its catalogue.",
   fridge:
     "The total counts every recipe the site found from these ingredients, and it serves one page of them.",
+  recipe:
+    "The site judged these words precise enough to name one recipe and opened it, in place of a listing. The row below is that recipe, read from its own page.",
+  unmatched:
+    "The site answered with its recipes home page, which is what it serves for words it could make nothing of. It listed no result for them and stated no count, so this is not a search that found nothing: it is one the site did not run.",
 };
 
 const CUT_OFF =
   "The site serves this listing on one page, so the rows beyond it are counted in the total and cannot be read.";
 
+/** Said only where the two figures agree, rather than assumed from the kind. */
+const TOTAL_IS_ROWS = "The total is the number of rows the site served here.";
+
+/** Rows a guide named a second time, folded into the first. */
+const FOLDED = (folded: number): string =>
+  `${folded} ${folded === 1 ? "row names a recipe" : "rows name recipes"} already listed under another heading, counted in 'rows_seen' and rendered once.`;
+
 export interface ListingNotes {
   /** The page a caller asked for, when it differs from the one that was served. */
   askedPage?: number;
+  /** What a caller asked for, when the site answered from another address. */
+  askedSlug?: string;
+  /** The most rows a caller can ask this tool for. */
+  maxLimit?: number;
   /** Rows the page held that could not be rendered. */
   skipped?: string[];
   /** Anything else this particular tool has to say. */
@@ -104,6 +155,24 @@ export interface ListingNotes {
 
 export function notesFor(report: ListingReport, options: ListingNotes = {}): string[] {
   const notes = [TOTAL_MEANS[report.kind]];
+
+  // Read off the two figures rather than assumed from how the listing came to
+  // be: the site counts more than it serves on some searches and not on others,
+  // and the same sentence on both would be false on one of them.
+  if (report.total_available !== null && report.total_available === report.rows_seen) {
+    notes.push(TOTAL_IS_ROWS);
+  }
+  // The site answers an address it does not hold by serving another. Naming the
+  // two is what keeps a listing of one topic from reading as a listing of the
+  // one that was asked for.
+  if (options.askedSlug !== undefined && options.askedSlug !== report.topic_slug) {
+    notes.push(
+      `"${options.askedSlug}" was asked for and the site answered from "${report.topic_slug}", which is what it does with an address it does not hold.`,
+    );
+  }
+  if (report.folded > 0) {
+    notes.push(FOLDED(report.folded));
+  }
 
   if (report.topic_slug !== null && report.kind === "topic") {
     notes.push(
@@ -168,6 +237,7 @@ export function listingResult(
   return ok(
     {
       asked: report.asked,
+      query: report.asked,
       kind: report.kind,
       topic_slug: report.topic_slug,
       title: report.title,
@@ -176,6 +246,7 @@ export function listingResult(
       // length of the list it sits beside.
       result_count: rendered.length,
       rows_seen: report.rows_seen,
+      folded: report.folded,
       total_available: report.total_available,
       page: report.page,
       single_page: report.single_page,
@@ -198,14 +269,21 @@ export function limitRows(
   limit: number,
 ): { rendered: RecipeRow[]; note: string[] } {
   const rendered = report.results.slice(0, limit);
-  return rendered.length < report.results.length
-    ? {
-        rendered,
-        note: [
-          `${rendered.length} of the ${report.results.length} rows this page served are rendered here. Raise 'limit' for the rest.`,
-        ],
-      }
-    : { rendered, note: [] };
+  if (rendered.length === report.results.length) {
+    return { rendered, note: [] };
+  }
+  // Raising the limit only helps below the ceiling. At the ceiling the rows are
+  // out of reach, and telling a caller to ask again would send them nowhere.
+  const more =
+    limit >= MAX_LIMIT
+      ? `No call to this tool reaches the rest, ${MAX_LIMIT} rows being the most it renders.`
+      : "Raise 'limit' for the rest.";
+  return {
+    rendered,
+    note: [
+      `${rendered.length} of the ${report.results.length} rows this page served are rendered here. ${more}`,
+    ],
+  };
 }
 
 export const DEFAULT_LIMIT = 20;

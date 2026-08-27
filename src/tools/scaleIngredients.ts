@@ -87,13 +87,15 @@ export function runScaleIngredients(args: ScaleIngredientsArgs): ToolResult {
     const notes: string[] = [];
 
     if (args.factor !== undefined) {
-      factor = args.factor;
+      // Applying one and ignoring the other would answer a question the caller
+      // did not ask, on a call that states two.
       if (args.from_servings !== undefined || args.to_servings !== undefined) {
-        notes.push(
-          "'factor' was given alongside 'from_servings'/'to_servings'. 'factor' was applied and the " +
-            "pair ignored; send only one of the two to remove the ambiguity.",
+        throw invalidInput(
+          "'factor' was given alongside 'from_servings' or 'to_servings', which state the factor twice.",
+          "Send one of the two: 'factor' on its own, or the pair on its own.",
         );
       }
+      factor = args.factor;
     } else if (args.from_servings !== undefined && args.to_servings !== undefined) {
       factor = args.to_servings / args.from_servings;
     } else {

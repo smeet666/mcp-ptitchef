@@ -38,8 +38,17 @@ export function truncate(text: string, maxChars: number): string {
  * output still carries the text exactly as it was published.
  */
 function quoteMarkerLines(body: string): string {
-  return body.replace(/^(Note:|Source:)/gm, "> $1");
+  return body.replace(MARKER_LINE, (whole) => `> ${whole.trimStart()}`);
 }
+
+/**
+ * A line opening the way this server's own trailer lines open.
+ *
+ * The site is French and writes "Note :" with a space before the colon as
+ * readily as "Note:", its editors indent, and neither case is fixed. All three
+ * are the same forgery, so all three are quoted.
+ */
+const MARKER_LINE = /^[ \t]*(?:note|source)[ \t\u00a0]*:/gim;
 
 /**
  * Build a result whose text block ends with its notes and its credit.
@@ -57,11 +66,15 @@ export function ok(
   body: string,
   options: { notes?: string[] } = {},
 ): ToolResult {
-  const trailer = [...(options.notes ?? []).map((note) => `Note: ${note}`), ATTRIBUTION].join("\n");
+  const safe = quoteMarkerLines(body);
+  // Measured before the trailer is built, because a cut has to be announced in
+  // the trailer that the cut is then measured against.
+  const provisional = trailerOf(options.notes ?? []);
+  const wouldCut = safe.length > Math.max(0, MAX_TEXT_CHARS - provisional.length - 2);
+
+  const trailer = trailerOf([...(options.notes ?? []), ...(wouldCut ? [CUT_NOTE] : [])]);
   const cut = "…";
   const budget = Math.max(0, MAX_TEXT_CHARS - trailer.length - 2);
-
-  const safe = quoteMarkerLines(body);
   const text =
     safe.length <= budget
       ? `${safe}\n\n${trailer}`
@@ -69,6 +82,19 @@ export function ok(
 
   return { content: [{ type: "text", text }], structuredContent: structured };
 }
+
+/**
+ * Said when the block below is shorter than what the answer holds.
+ *
+ * Every other cut this server makes is announced. A method broken off in the
+ * middle of a sentence, on a client that renders only this block, would read as
+ * the whole of the recipe.
+ */
+const CUT_NOTE =
+  "This text block was cut to fit. The structured payload beside it carries the answer whole.";
+
+const trailerOf = (notes: readonly string[]): string =>
+  [...notes.map((note) => `Note: ${note}`), ATTRIBUTION].join("\n");
 
 /**
  * Errors carry no structured payload: the SDK checks it against the tool's
@@ -98,7 +124,7 @@ export const scaledIngredientSchema = z.object({
         "bigger unit, so 200 g scaled tenfold reads as 2 kg, and the bare number shrinks while the " +
         "quantity grows.",
     ),
-  amountMax: z
+  amount_max: z
     .number()
     .nullable()
     .describe(

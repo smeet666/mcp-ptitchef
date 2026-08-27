@@ -75,6 +75,15 @@
           "isRequired": false
         }
       ]
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/smeet666/mcp-ptitchef/releases/download/v0.0.0/mcp-ptitchef-0.0.0.mcpb",
+      "version": "0.0.0",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      }
     }
   ]
 }

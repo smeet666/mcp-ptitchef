@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `server.json` declares the `.mcpb` bundle among its packages. The publish step
+  was written to stamp its address and hash from the file the release carries,
+  and found nothing to stamp, so the 1.0.0 registry entry names the npm package
+  alone. The bundle is on the GitHub release either way.
+
 ## [1.0.0] - 2026-08-27
 
 The first release. Everything below is what this server does, rather than how it

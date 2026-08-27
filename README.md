@@ -26,7 +26,7 @@ level it never asked for.
 This server publishes the tree, so a category is opened by the name the site
 gave it.
 
-## The tool
+## The tools
 
 ### `list_categories`
 
@@ -66,6 +66,44 @@ the families of ingredients; pass a family's slug back to list what it holds.
 }
 ```
 
+### `search_recipes`
+
+Searches by dish or ingredient. The site answers in one of two ways, and `kind`
+says which.
+
+| Argument | Type              | Meaning                                     |
+| -------- | ----------------- | ------------------------------------------- |
+| `query`  | string            | A dish or an ingredient, in French.         |
+| `limit`  | integer, optional | Rows to render, 20 by default, 100 at most. |
+
+Searching `puree de patate douce` comes back as `kind: "topic"` with
+`topic_slug: "puree-de-patates-douces"`: the site holds a page for it, sent the
+search there, and the total counts what that page holds. Searching
+`soupe froide concombre menthe` comes back as `kind: "free_text"`: the site holds
+no such page, answered on its own terms, and the total is the number of rows it
+served.
+
+### `browse_recipes`
+
+Reads a category page by page, or one of the three lists the site keeps standing.
+
+| Argument   | Type                                     | Meaning                                                    |
+| ---------- | ---------------------------------------- | ---------------------------------------------------------- |
+| `category` | string, optional                         | A slug from `list_categories`, or a search's `topic_slug`. |
+| `listing`  | `latest` \| `top_rated` \| `most_viewed` | One of the site's standing lists.                          |
+| `page`     | integer, optional                        | The page of a category to read.                            |
+| `limit`    | integer, optional                        | Rows to render, 20 by default.                             |
+
+### `search_by_ingredients`
+
+Reads the site's own fridge search: one to five ingredients in, recipes holding
+them out.
+
+| Argument      | Type              | Meaning                             |
+| ------------- | ----------------- | ----------------------------------- |
+| `ingredients` | string[]          | One to five ingredients, in French. |
+| `limit`       | integer, optional | Rows to render, 20 by default.      |
+
 ## What the answers refuse to overstate
 
 **A level the site substituted is not the level that was asked for.** An unknown
@@ -90,6 +128,22 @@ counted, and named in the notes.
 
 **A blurb the page does not carry is `null`, never an empty string.** An empty
 description would offer wording that was never published.
+
+**A listing has two totals that count different things, and the answer says
+which arrived.** A search the site sends to a category page reports that
+category's total; a search it answers itself reports the number of rows it
+served. Summing the two would add a catalogue to a page.
+
+**A rating is the figure the site computed, not the one it drew.** A row states
+3.8 in its payload and draws four stars. The drawn figure is left alone.
+
+**A page past the last one comes back as the page the site served.** The site
+answers it with the first page, so reporting the number that was asked for would
+send a caller round the same rows for ever.
+
+**The fridge search counts far past what it serves.** It finds eighty-nine
+recipes for three ingredients, offers twenty-four of them on one page, and links
+no other. The answer states both figures and says the rest cannot be read.
 
 ## Install
 

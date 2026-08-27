@@ -18,6 +18,27 @@ import {
   listCategoriesOutputShape,
   runListCategories,
 } from "./tools/listCategories.js";
+import type { BrowseRecipesArgs } from "./tools/browseRecipes.js";
+import {
+  browseRecipesArgs,
+  browseRecipesDescription,
+  browseRecipesOutputShape,
+  runBrowseRecipes,
+} from "./tools/browseRecipes.js";
+import type { SearchByIngredientsArgs } from "./tools/searchByIngredients.js";
+import {
+  runSearchByIngredients,
+  searchByIngredientsArgs,
+  searchByIngredientsDescription,
+  searchByIngredientsOutputShape,
+} from "./tools/searchByIngredients.js";
+import type { SearchRecipesArgs } from "./tools/searchRecipes.js";
+import {
+  runSearchRecipes,
+  searchRecipesArgs,
+  searchRecipesDescription,
+  searchRecipesOutputShape,
+} from "./tools/searchRecipes.js";
 import { toToolError } from "./tools/shared.js";
 import { PKG_VERSION } from "./version.js";
 
@@ -40,6 +61,10 @@ export const INSTRUCTIONS = [
   "Start with list_categories: the site browses its recipes by a tree of ingredient families, and every category is addressed by a slug.",
   "Never build a slug by hand. The site writes them freely, so the same ingredient appears as 'chou-kale' on one line and as 'recette-de-petits-pois' on the next, and a guessed slug reaches a page the site does not hold.",
   "Called without arguments, list_categories returns the families; pass a family's slug back as 'family' to list what it holds.",
+  "search_recipes is answered by the site in one of two ways, and 'kind' says which: from a category page of its own, whose total counts that category, or on its own terms on a single page whose total is the rows served. The two totals count different things.",
+  "browse_recipes reads a category page by page, and search_by_ingredients answers what can be made from what a cook has.",
+  "A listing marked 'single_page' whose total exceeds 'rows_seen' has a remainder the site counts and will not serve.",
+  "The page an answer reports is the page the site served, which is the first page again when the page asked for is past the last one.",
   "The entries shown beside a family are an excerpt the site prints followed by an ellipsis, so their number says nothing about what the family holds.",
   "'category_count' is what an answer rendered and 'categories_published' is what the page listed; the two differ whenever a limit cut the list.",
   "This server paces itself, and a rate_limited error means the site asked it to slow down, never that nothing matched.",
@@ -72,6 +97,60 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     async (args) => {
       try {
         return await runListCategories(client, args as ListCategoriesArgs);
+      } catch (error) {
+        return toToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "search_recipes",
+    {
+      title: "Search recipes",
+      description: searchRecipesDescription,
+      inputSchema: searchRecipesArgs,
+      outputSchema: z.object(searchRecipesOutputShape),
+      annotations: READ_ONLY,
+    },
+    async (args) => {
+      try {
+        return await runSearchRecipes(client, args as SearchRecipesArgs);
+      } catch (error) {
+        return toToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "browse_recipes",
+    {
+      title: "Browse a category or a standing list",
+      description: browseRecipesDescription,
+      inputSchema: browseRecipesArgs,
+      outputSchema: z.object(browseRecipesOutputShape),
+      annotations: READ_ONLY,
+    },
+    async (args) => {
+      try {
+        return await runBrowseRecipes(client, args as BrowseRecipesArgs);
+      } catch (error) {
+        return toToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "search_by_ingredients",
+    {
+      title: "Find recipes from ingredients you have",
+      description: searchByIngredientsDescription,
+      inputSchema: searchByIngredientsArgs,
+      outputSchema: z.object(searchByIngredientsOutputShape),
+      annotations: READ_ONLY,
+    },
+    async (args) => {
+      try {
+        return await runSearchByIngredients(client, args as SearchByIngredientsArgs);
       } catch (error) {
         return toToolError(error);
       }

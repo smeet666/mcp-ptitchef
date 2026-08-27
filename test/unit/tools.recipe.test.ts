@@ -113,7 +113,7 @@ afterEach(() => {
 });
 
 describe("get_recipe without servings", () => {
-  it("returns the lines as published and says no arithmetic was done", async () => {
+  it("returns the lines as published, with no factor announced over them", async () => {
     const result = await runWithClock(
       runGetRecipe(clientServing(fixture("recipe-full"), PAGE), args({ id: ID })),
     );
@@ -124,7 +124,9 @@ describe("get_recipe without servings", () => {
     expect(recipe.ingredients.map((line) => line.text)).toEqual(
       recipe.ingredients.map((line) => line.original),
     );
-    expect(recipe.notes.join(" ")).toMatch(/no arithmetic/i);
+    // That no servings means no arithmetic is true of every such answer, so it
+    // is written in the schema rather than repeated as a note on each one.
+    expect(recipe.notes.join(" ")).not.toMatch(/no arithmetic/i);
   });
 
   it("leaves the text unflagged, since a flag would answer a question nobody asked", async () => {

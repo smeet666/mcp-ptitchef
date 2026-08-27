@@ -144,9 +144,9 @@ describe("search_recipes", () => {
 
     expect(structured.kind).toBe("topic");
     expect(structured.topic_slug).toBe("brindilles");
-    // A total counting a category is not a count of what matched the words.
+    // A total counting a category counts something other than what matched the
+    // words that were typed.
     expect(structured.notes.join(" ")).toMatch(/category page of its own/i);
-    expect(structured.notes.join(" ")).toContain("browse_recipes");
   });
 
   it("renders an absence the site stated, without calling it a failure", async () => {

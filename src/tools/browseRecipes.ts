@@ -41,7 +41,10 @@ export const browseRecipesInput = {
     .min(1)
     .max(120)
     .optional()
-    .describe("A category slug from list_categories, or a search's 'topic_slug'."),
+    .describe(
+      "A category slug: one from list_categories whose 'is_family' is false, or the 'topic_slug' a " +
+        "search answered with. A family's slug belongs to list_categories instead.",
+    ),
   listing: z
     .enum(["latest", "top_rated", "most_viewed"])
     .optional()

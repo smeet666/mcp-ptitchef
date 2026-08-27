@@ -156,3 +156,20 @@ describe("a line too long to read, on a list handed back as published", () => {
     expect(line?.note).toMatch(/past the 500/i);
   });
 });
+
+describe("a word the page did not end on a letter", () => {
+  it("takes no plural mark, being already written for both numbers", () => {
+    expect(at("1 à 2 tomate(s)", 3)).toBe("3 à 6 tomate(s)");
+  });
+});
+
+describe("an adjective carrying its -s in both numbers", () => {
+  it("keeps it, since trimming it writes a word nobody uses", () => {
+    expect(at("2 gros oeufs", 0.1)).toBe("1 gros oeufs");
+    expect(at("4 frais oeufs", 0.25)).toBe("1 frais oeufs");
+  });
+
+  it("leaves an ordinary noun its plural to trim", () => {
+    expect(at("2 tomates", 0.5)).toBe("1 tomate");
+  });
+});

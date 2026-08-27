@@ -76,8 +76,8 @@ export const listingOutputShape = {
     .string()
     .nullable()
     .describe(
-      "The category page this listing was served from. Pass it to browse_recipes to read further " +
-        "pages of it.",
+      "The category page this listing was served from. Pass it to browse_recipes as 'category' to " +
+        "read the topic's further pages, and its total where this answer carries none.",
     ),
   title: z.string().nullable().describe("The site's own heading for the listing."),
   results: z.array(recipeRowSchema),
@@ -174,11 +174,6 @@ export function notesFor(report: ListingReport, options: ListingNotes = {}): str
     notes.push(FOLDED(report.folded));
   }
 
-  if (report.topic_slug !== null && report.kind === "topic") {
-    notes.push(
-      `Pass topic_slug "${report.topic_slug}" to browse_recipes to read further pages of it.`,
-    );
-  }
   // Only when rows were left behind: a listing served whole on one page has
   // nothing beyond it, and saying otherwise would invent a remainder.
   if (
@@ -250,7 +245,7 @@ function renderRow(row: RecipeRow): string {
   if (row.rating !== null) {
     stated.push(`${row.rating}/5${row.rating_count === null ? "" : ` (${row.rating_count})`}`);
   }
-  const detail = stated.length > 0 ? ` — ${stated.join(", ")}` : "";
+  const detail = stated.length > 0 ? `: ${stated.join(", ")}` : "";
   return `${row.title}${detail}\n  ${row.id}`;
 }
 

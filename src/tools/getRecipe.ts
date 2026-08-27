@@ -98,7 +98,12 @@ export const getRecipeOutputShape = {
           "asked for, or the page states none to divide by.",
       ),
   }),
-  ingredients: z.array(scaledIngredientSchema),
+  ingredients: z
+    .array(scaledIngredientSchema)
+    .describe(
+      "The lines as published where no servings were asked for, in which case 'yield.factor' is " +
+        "null and each line's 'scaling' describes no arithmetic. Pass 'servings' to rescale them.",
+    ),
   steps: z
     .array(z.string())
     .describe(
@@ -130,7 +135,12 @@ export const getRecipeOutputShape = {
     ),
   keywords: z.array(z.string()),
   faq: z.array(z.object({ question: z.string(), answer: z.string() })),
-  translations: z.array(z.object({ language: z.string(), url: z.string() })),
+  translations: z
+    .array(z.object({ language: z.string(), url: z.string() }))
+    .describe(
+      "The other languages this recipe was published in, which get_recipe_translations answers on " +
+        "its own for a caller who wants nothing else.",
+    ),
   attribution: z.string(),
   source: z.string().describe("The site this recipe was read from. Credit it when showing it."),
   notes: z
@@ -152,9 +162,6 @@ const NO_INGREDIENTS_NOTE =
 
 const NO_YIELD_NOTE =
   "The page states no number of servings, so the ingredients could not be rescaled and come back as published.";
-
-const AS_PUBLISHED_NOTE =
-  "No servings were asked for, so the ingredients are the lines as published and 'scaling' describes no arithmetic. Pass 'servings' to rescale them.";
 
 /** Said with the servings it was published for, which is what the page carries. */
 const costNote = (recipe: Recipe): string =>
@@ -260,7 +267,7 @@ function render(
   ].filter((entry) => entry !== null);
 
   return [
-    `${recipe.title}${heading.length === 0 ? "" : ` — ${heading.join(" · ")}`}`,
+    `${recipe.title}${heading.length === 0 ? "" : `: ${heading.join(" · ")}`}`,
     ...ingredients.map(
       (entry) =>
         `- ${entry.text}${factor !== null && entry.scaling === "unscaled" ? " (unscaled)" : ""}`,
@@ -283,7 +290,6 @@ export async function runGetRecipe(
   const { factor, ingredients, notes: yieldNotes } = rescale(recipe, parsed.data.servings);
 
   const notes = [
-    ...(factor === null && yieldNotes.length === 0 ? [AS_PUBLISHED_NOTE] : []),
     ...yieldNotes,
     ...scalingNotes(ingredients, factor),
     ...(recipe.steps_are_one_block ? [ONE_BLOCK_NOTE] : []),

@@ -2,8 +2,8 @@
  * scale_ingredients: rescale an arbitrary ingredient list, offline.
  *
  * This tool makes no network request. It exposes the quantity parser on its own,
- * so a list copied from anywhere, not only Ptitchef, can be rescaled with the
- * same care about what is and is not safe to multiply.
+ * so a list copied from any source can be rescaled with the same care about
+ * which quantities a factor may touch.
  */
 
 import { z } from "zod";
@@ -19,7 +19,7 @@ const CLAMPED_UP = /clamped up/i;
 export const scaleIngredientsDescription = [
   "Rescale a list of ingredient lines to a different number of servings, without contacting any website.",
   "Give either 'factor' directly, or 'from_servings' and 'to_servings' and the factor is computed.",
-  "Works on any French ingredient list, whatever its source, so it also serves a recipe the user pasted in.",
+  "Works on any French ingredient list, whatever its source, so it also serves a recipe pasted in by hand.",
   "Quantities in grams or millilitres are multiplied and rounded to readable values; a countable thing lands on",
   "a half when half of one can be poured, weighed or cut, as a boîte, a sachet, a feuille de gélatine or a",
   "cuillère can, and on a whole one when it cannot, as an oeuf, a jaune or a blanc; approximate measures such",

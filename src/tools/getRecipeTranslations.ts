@@ -16,11 +16,13 @@ import { refusalMessage, strictInput } from "./arguments.js";
 import { ok, SOURCE_NAME, type ToolResult } from "./shared.js";
 
 export const getRecipeTranslationsDescription =
-  "List the other languages a Ptitchef recipe was published in, with the page of each. Pass the 'id' " +
+  "List the other languages a Ptitchef recipe was published in, with the page of each. get_recipe " +
+  "already carries this list under 'translations', so call this one only where the rest of the " +
+  "recipe is not wanted. Pass the 'id' " +
   "of a row from a search or a listing. The pairing is the site's own: each page names its " +
   "counterparts, and this repeats those names rather than matching titles. How many there are belongs " +
   "to the recipe: a recent one names more than twenty, from German to Hindi, and an older one names " +
-  "none. An empty list is what the site published, not a failure to read it.";
+  "none. An empty list is what the site published, and the read succeeded.";
 
 export const getRecipeTranslationsInput = {
   id: z

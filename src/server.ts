@@ -168,7 +168,7 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
   server.registerTool(
     "search_by_ingredients",
     {
-      title: "Find recipes from ingredients you have",
+      title: "Find recipes from the ingredients a cook has",
       description: searchByIngredientsDescription,
       inputSchema: searchByIngredientsArgs,
       outputSchema: z.object(searchByIngredientsOutputShape),

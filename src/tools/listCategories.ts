@@ -24,7 +24,7 @@ export const listCategoriesDescription =
   "the page to open.";
 
 /** How many entries an answer renders when the caller names no number. */
-const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 200;
 
 export const listCategoriesInput = {
@@ -45,8 +45,8 @@ export const listCategoriesInput = {
     .max(MAX_LIMIT)
     .optional()
     .describe(
-      `Entries to render, ${DEFAULT_LIMIT} by default. A level holding more than this says so, and ` +
-        "'categories_published' always states what the page listed.",
+      `Entries to render, ${DEFAULT_LIMIT} by default and ${MAX_LIMIT} at most. A level holding ` +
+        "more than this says so, and 'categories_published' always states what the page listed.",
     ),
 } as const;
 
@@ -96,12 +96,6 @@ export const listCategoriesOutputShape = {
 
 export type ListCategoriesArgs = z.infer<typeof listCategoriesArgs>;
 
-const SAMPLE_NOTE =
-  "The entries shown beside a family are an excerpt the site prints followed by an ellipsis, so their number says nothing about what the family holds.";
-
-const OPEN_NOTE =
-  "Pass a slug back as 'family' to list what it holds, and use an entry's page to reach its recipes.";
-
 const LEAF_NOTE =
   "No entry here opens onto further categories. Pass a slug to browse_recipes to read the recipes under it; passing it as 'family' comes back as an absence.";
 
@@ -128,19 +122,17 @@ function limitTo(report: CategoryReport, limit: number, skipped: string[]): Rend
       `${rendered.length} of the ${report.categories.length} entries this page lists are rendered here. Raise 'limit' for the rest.`,
     );
   }
-  if (rendered.some((entry) => entry.sample_children.length > 0)) {
-    notes.push(SAMPLE_NOTE);
-  }
   if (skipped.length > 0) {
     notes.push(
       `${skipped.length} ${skipped.length === 1 ? "entry was" : "entries were"} set aside: ${skipped.join("; ")}.`,
     );
   }
+  // Only where the level in hand makes it true. What holds for every level is
+  // written in the schema and in the description, which a caller reads once
+  // rather than on every call.
   if (rendered.length === 0) {
     notes.push(EMPTY_NOTE);
-  } else if (rendered.some((entry) => entry.is_family)) {
-    notes.push(OPEN_NOTE);
-  } else {
+  } else if (!rendered.some((entry) => entry.is_family)) {
     // Telling a caller to open one of these would send them to an absence: the
     // tool answers a family, and none of these is one.
     notes.push(LEAF_NOTE);
@@ -158,7 +150,7 @@ function renderEntry(entry: Category): string {
   const beside =
     entry.sample_children.length === 0
       ? ""
-      : ` — among them: ${entry.sample_children.map((child) => child.title).join(", ")}`;
+      : `, among them: ${entry.sample_children.map((child) => child.title).join(", ")}`;
   return `${entry.slug}: ${entry.title}${opens}${beside}`;
 }
 

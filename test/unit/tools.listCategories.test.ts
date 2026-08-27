@@ -137,22 +137,15 @@ describe("the root of the tree", () => {
     expect(textOf(result)).toContain(ATTRIBUTION);
   });
 
-  it("says that the entries shown beside a family are an excerpt", async () => {
+  it("carries no note where the level in hand raises none", async () => {
+    // That the entries beside a family are an excerpt, and that a slug is
+    // passed back as 'family', hold for every level alike: both are written in
+    // the schema, which a caller reads once rather than on every call.
     const result = await runWithClock(
       runListCategories(clientServing(fixture("categories-root")), args({})),
     );
 
-    // The site prints three of them followed by an ellipsis. Rendering them
-    // without saying so offers a family of ninety as a family of three.
-    expect(structuredOf(result).notes.join(" ")).toMatch(/excerpt|sample/i);
-  });
-
-  it("tells a caller how to open a family", async () => {
-    const result = await runWithClock(
-      runListCategories(clientServing(fixture("categories-root")), args({})),
-    );
-
-    expect(structuredOf(result).notes.join(" ")).toContain("family");
+    expect(structuredOf(result).notes).toEqual([]);
   });
 });
 

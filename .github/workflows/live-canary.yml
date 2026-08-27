@@ -12,7 +12,7 @@ name: Live canary
 
 on:
   schedule:
-    # 06:51 UTC, off the hour and clear of the other scheduled jobs.
+    # 05:31 UTC, off the hour and clear of the other scheduled jobs.
     - cron: "31 5 * * *"
   workflow_dispatch:
 

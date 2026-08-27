@@ -97,6 +97,6 @@ entering the real number. The combined button picks one of its own.
 
 ## The live canary
 
-A nightly job at 06:51 UTC runs the live suite against the real routes and opens
+A nightly job at 05:31 UTC runs the live suite against the real routes and opens
 an issue when it fails. A failure there means the site moved, never that a pull
 request is bad, which is why it sits outside continuous integration.

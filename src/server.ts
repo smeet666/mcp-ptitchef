@@ -25,6 +25,20 @@ import {
   browseRecipesOutputShape,
   runBrowseRecipes,
 } from "./tools/browseRecipes.js";
+import type { GetRecipeArgs } from "./tools/getRecipe.js";
+import {
+  getRecipeArgs,
+  getRecipeDescription,
+  getRecipeOutputShape,
+  runGetRecipe,
+} from "./tools/getRecipe.js";
+import type { GetRecipeTranslationsArgs } from "./tools/getRecipeTranslations.js";
+import {
+  getRecipeTranslationsArgs,
+  getRecipeTranslationsDescription,
+  getRecipeTranslationsOutputShape,
+  runGetRecipeTranslations,
+} from "./tools/getRecipeTranslations.js";
 import type { SearchByIngredientsArgs } from "./tools/searchByIngredients.js";
 import {
   runSearchByIngredients,
@@ -39,6 +53,13 @@ import {
   searchRecipesDescription,
   searchRecipesOutputShape,
 } from "./tools/searchRecipes.js";
+import {
+  runScaleIngredients,
+  scaleIngredientsDescription,
+  scaleIngredientsInput,
+  scaleIngredientsOutputShape,
+} from "./tools/scaleIngredients.js";
+import type { ScaleIngredientsArgs } from "./tools/scaleIngredients.js";
 import { toToolError } from "./tools/shared.js";
 import { PKG_VERSION } from "./version.js";
 
@@ -65,6 +86,10 @@ export const INSTRUCTIONS = [
   "browse_recipes reads a category page by page, and search_by_ingredients answers what can be made from what a cook has.",
   "A listing marked 'single_page' whose total exceeds 'rows_seen' has a remainder the site counts and will not serve.",
   "The page an answer reports is the page the site served, which is the first page again when the page asked for is past the last one.",
+  "get_recipe reads one recipe from the 'id' a listing row carried, and rescales its ingredients when given 'servings'. Read each line's 'scaling' before quoting a quantity: 'scaled' is exact, 'rounded' was moved to stay usable, 'unscaled' carries nothing that could be multiplied.",
+  "scale_ingredients does the same arithmetic offline on any French ingredient list, whatever its source.",
+  "get_recipe_translations lists the other languages a recipe was published in, using the pairing the site itself publishes.",
+  "A time or a figure the site publishes none of is null, never zero, and the cost it estimates is repeated as published rather than recomputed.",
   "The entries shown beside a family are an excerpt the site prints followed by an ellipsis, so their number says nothing about what the family holds.",
   "'category_count' is what an answer rendered and 'categories_published' is what the page listed; the two differ whenever a limit cut the list.",
   "This server paces itself, and a rate_limited error means the site asked it to slow down, never that nothing matched.",
@@ -151,6 +176,54 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
     async (args) => {
       try {
         return await runSearchByIngredients(client, args as SearchByIngredientsArgs);
+      } catch (error) {
+        return toToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_recipe",
+    {
+      title: "Read one recipe",
+      description: getRecipeDescription,
+      inputSchema: getRecipeArgs,
+      outputSchema: z.object(getRecipeOutputShape),
+      annotations: READ_ONLY,
+    },
+    async (args) => {
+      try {
+        return await runGetRecipe(client, args as GetRecipeArgs);
+      } catch (error) {
+        return toToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "scale_ingredients",
+    {
+      title: "Rescale an ingredient list",
+      description: scaleIngredientsDescription,
+      inputSchema: scaleIngredientsInput,
+      outputSchema: z.object(scaleIngredientsOutputShape),
+      annotations: { ...READ_ONLY, openWorldHint: false },
+    },
+    (args) => runScaleIngredients(args as ScaleIngredientsArgs),
+  );
+
+  server.registerTool(
+    "get_recipe_translations",
+    {
+      title: "Find a recipe in the other languages it was published in",
+      description: getRecipeTranslationsDescription,
+      inputSchema: getRecipeTranslationsArgs,
+      outputSchema: z.object(getRecipeTranslationsOutputShape),
+      annotations: READ_ONLY,
+    },
+    async (args) => {
+      try {
+        return await runGetRecipeTranslations(client, args as GetRecipeTranslationsArgs);
       } catch (error) {
         return toToolError(error);
       }

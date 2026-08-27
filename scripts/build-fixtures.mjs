@@ -425,6 +425,231 @@ const listingOdd = `<!doctype html>
 </body></html>
 `;
 
+/** The payload a recipe page carries, written the way the site writes one. */
+const recipePayload = (over = {}) => ({
+  "@context": "https://schema.org/",
+  "@type": "Recipe",
+  name: "Brindilles au four",
+  inLanguage: "fr",
+  recipeCategory: "Accompagnement",
+  recipeCuisine: "Fr",
+  image: "https://www.ptitchef.com/imgupl/recipe/brindilles-au-four.webp",
+  author: {
+    "@type": "Person",
+    name: "Wren Holloway",
+    url: "https://www.ptitchef.com/team/wren-tmid-9",
+  },
+  datePublished: "2026-02-11T10:00:00+01:00",
+  dateModified: "2026-08-01T09:30:00+02:00",
+  description: "Des brindilles dorées au four, sans rien de compliqué.",
+  aggregateRating: {
+    "@type": "AggregateRating",
+    ratingValue: 3.8,
+    bestRating: 5,
+    ratingCount: 9,
+    reviewCount: 4,
+  },
+  prepTime: "PT10M",
+  cookTime: "PT20M",
+  totalTime: "PT30M",
+  recipeYield: "4",
+  nutrition: {
+    "@type": "NutritionInformation",
+    servingSize: "326g",
+    calories: "295Kcal",
+    carbohydrateContent: "49.3g",
+    fatContent: "5.9g",
+    saturatedFatContent: "3.4g",
+    proteinContent: "7.2g",
+    fiberContent: "7.8g",
+    sugarContent: "16.9g",
+    sodiumContent: "0.3g",
+  },
+  recipeIngredient: [
+    "800 gr de brindilles",
+    "1 oeuf",
+    "5 cl de lait",
+    "1,5kg de galinettes",
+    "> 2 cuillères à soupe de miel",
+    "sel, poivre",
+  ],
+  estimatedCost: { "@type": "MonetaryAmount", currency: "EUR", value: "4.82" },
+  recipeInstructions: [
+    {
+      "@type": "HowToStep",
+      image: "https://www.ptitchef.com/imgupl/recipe-step/1.jpg",
+      text: "Lavez les brindilles.",
+    },
+    { "@type": "HowToStep", text: "Enfournez vingt minutes." },
+  ],
+  keywords: "brindilles,accompagnement,recettes economiques",
+  ...over,
+});
+
+const faqPayload = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "Peut-on préparer les brindilles la veille ?",
+      acceptedAnswer: { "@type": "Answer", text: "Oui, elles se réchauffent très bien au four." },
+    },
+    { "@type": "Question", name: "Une question sans réponse ?" },
+  ],
+};
+
+/** The addresses of the same recipe on the other sites of the network. */
+const alternates = `
+<link rel="alternate" hreflang="fr" href="https://www.ptitchef.com/recettes/accompagnement/brindilles-au-four-fid-101">
+<link rel="alternate" hreflang="es" href="https://www.petitchef.es/recetas/guarnicion/ramitas-al-horno-fid-102">
+<link rel="alternate" hreflang="it" href="https://www.petitchef.it/ricette/contorno/rametti-al-forno-fid-103">
+<link rel="alternate" hreflang="es" href="https://www.petitchef.es/recetas/guarnicion/un-doublon-fid-104">
+<link rel="alternate" hreflang="x-default" href="https://www.ptitchef.com/recettes/accompagnement/brindilles-au-four-fid-101">`;
+
+/** A recipe page, with everything the site puts on one. */
+const recipePage = (payload, extras = {}) => `<!doctype html>
+<html lang="fr"><head><title>${payload.name}</title>
+<script type="application/ld+json">{ not json at all }</script>
+<script type="application/ld+json">${JSON.stringify({ "@type": "WebSite", name: "Ptitchef" })}</script>
+<script type="application/ld+json">${JSON.stringify(payload)}</script>
+${extras.faq === false ? "" : `<script type="application/ld+json">${JSON.stringify(faqPayload)}</script>`}
+${extras.alternates === false ? "" : alternates}</head>
+<body>${chrome}
+<main id="page-main">
+  <h1 class="title">${payload.name}</h1>
+  ${extras.difficulty === false ? "" : '<span title="Difficulté: moyen"><i></i> moyen</span>'}
+  ${extras.servings === false ? "" : '<span class="servings-form" data-servings="4"></span>'}
+</main>
+</body></html>
+`;
+
+const recipeFull = recipePage(recipePayload());
+
+/**
+ * A recipe whose method is one block of prose.
+ *
+ * The site writes it either way, and a block is not a step: an answer built
+ * from one says so rather than offering a paragraph as step one of one.
+ */
+const recipeOneBlock = recipePage(
+  recipePayload({
+    recipeInstructions: "Lavez les brindilles, puis enfournez-les vingt minutes.",
+    name: "Brindilles en bloc",
+  }),
+);
+
+/** A recipe the site published almost nothing about. */
+const recipeBare = recipePage(
+  {
+    "@context": "https://schema.org/",
+    "@type": "Recipe",
+    name: "Brindilles nues",
+    recipeIngredient: ["2 brindilles"],
+  },
+  { faq: false, alternates: false, difficulty: false, servings: false },
+);
+
+/**
+ * A recipe whose payload states things in the awkward shapes the site allows.
+ *
+ * An image named as an object, a yield the page states only in its markup, a
+ * nutrition block holding nothing, a cost with no currency, and keywords
+ * written as a list rather than as one string.
+ */
+const recipeOdd = recipePage(
+  recipePayload({
+    name: "Brindilles étranges",
+    image: [{ "@type": "ImageObject", url: "https://www.ptitchef.com/imgupl/recipe/etrange.webp" }],
+    recipeYield: "",
+    nutrition: { "@type": "NutritionInformation" },
+    estimatedCost: { "@type": "MonetaryAmount", value: "4.82" },
+    keywords: ["brindilles", "", "four"],
+    recipeInstructions: [{ "@type": "HowToStep" }, "Enfournez.", 42],
+    aggregateRating: { "@type": "AggregateRating", ratingValue: "pas un nombre" },
+  }),
+);
+
+/**
+ * A recipe whose payload states the remaining awkward shapes.
+ *
+ * Ingredients that are not a list, a cost stated with a currency and no amount,
+ * an FAQ that is not a list, and an FAQ entry that is not an object.
+ */
+const recipeAwkward = recipePage(
+  recipePayload({
+    name: "Brindilles bancales",
+    recipeIngredient: "800 gr de brindilles",
+    estimatedCost: { "@type": "MonetaryAmount", currency: "EUR" },
+    recipeInstructions: [{ "@type": "HowToStep", text: "Enfournez." }],
+  }),
+).replace(
+  JSON.stringify(faqPayload),
+  JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: "pas une liste",
+  }),
+);
+
+/** A recipe whose questions are a list holding something that is not one. */
+const recipeOddFaq = recipePage(recipePayload({ name: "Brindilles interrogées" })).replace(
+  JSON.stringify(faqPayload),
+  JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: ["une chaîne", { "@type": "Question", name: "Sans réponse ?" }],
+  }),
+);
+
+/**
+ * A recipe whose lines exercise every verdict the arithmetic can reach.
+ *
+ * A pinch whose size is the cook's, a sachet that clamps at the smallest share
+ * worth measuring, a mass that rounds, and a line carrying nothing at all.
+ */
+const recipeVerdicts = recipePage(
+  recipePayload({
+    name: "Brindilles à toutes les sauces",
+    recipeIngredient: ["1 pincée de sel", "1 sachet de levure", "155 g de farine", "poivre"],
+  }),
+);
+
+/**
+ * A recipe stating things in shapes a payload may hold and a reader may not.
+ *
+ * No name at all, an image named as an object that carries a content address
+ * rather than a plain one, an empty list of images, an ingredient list holding
+ * something that is not a line, and a rating count written as words.
+ */
+const recipeUnnamed = recipePage(
+  recipePayload({
+    name: "",
+    image: { "@type": "ImageObject", contentUrl: "https://www.ptitchef.com/imgupl/recipe/c.webp" },
+    recipeIngredient: ["2 brindilles", 42, "", "1 oeuf"],
+    aggregateRating: { "@type": "AggregateRating", ratingValue: "4", ratingCount: "beaucoup" },
+    recipeYield: "6 personnes",
+  }),
+);
+
+/** A recipe every line of which carries a quantity the arithmetic can move. */
+const recipeAllScalable = recipePage(
+  recipePayload({
+    name: "Brindilles mesurées",
+    recipeIngredient: ["200 g de farine", "10 cl de lait"],
+  }),
+);
+
+/** A recipe the payload names no image for at all. */
+const recipeNoImage = recipePage(recipePayload({ name: "Brindilles sans photo", image: [] }));
+
+/** A page the site served without any recipe payload on it. */
+const recipeMissing = `<!doctype html>
+<html lang="fr"><head><title>Ptitchef</title>
+<script type="application/ld+json">${JSON.stringify({ "@type": "WebSite", name: "Ptitchef" })}</script></head>
+<body>${chrome}<main id="page-main"><h1 class="title">Ptitchef</h1></main></body></html>
+`;
+
 const files = {
   "categories-root.html": root,
   "categories-family.html": family,
@@ -443,6 +668,17 @@ const files = {
   "listing-fridge-cut.html": listingCut,
   "listing-odd.html": listingOdd,
   "listing-one-broken-row.html": listingOneBrokenRow,
+  "recipe-full.html": recipeFull,
+  "recipe-one-block.html": recipeOneBlock,
+  "recipe-bare.html": recipeBare,
+  "recipe-odd.html": recipeOdd,
+  "recipe-missing.html": recipeMissing,
+  "recipe-awkward.html": recipeAwkward,
+  "recipe-odd-faq.html": recipeOddFaq,
+  "recipe-verdicts.html": recipeVerdicts,
+  "recipe-unnamed.html": recipeUnnamed,
+  "recipe-no-image.html": recipeNoImage,
+  "recipe-all-scalable.html": recipeAllScalable,
 };
 
 for (const [name, body] of Object.entries(files)) {

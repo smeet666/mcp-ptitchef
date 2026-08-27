@@ -160,6 +160,8 @@ describe("the wiring of every tool", () => {
     { name: "search_recipes", arguments: { query: "brindilles" } },
     { name: "browse_recipes", arguments: { category: "brindilles" } },
     { name: "search_by_ingredients", arguments: { ingredients: ["poulet"] } },
+    { name: "get_recipe", arguments: { id: "recettes/plat/brindilles-fid-101" } },
+    { name: "get_recipe_translations", arguments: { id: "recettes/plat/brindilles-fid-101" } },
   ] as const;
 
   for (const call of CALLS) {
@@ -180,6 +182,22 @@ describe("the wiring of every tool", () => {
       expect(result.isError).toBe(true);
     });
   }
+
+  it("answers scale_ingredients without touching the network at all", async () => {
+    const server = createServer({ fetchImpl: forbiddenFetch });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "contract-test", version: "0.0.0" });
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+
+    const result = await settle(
+      client.callTool({
+        name: "scale_ingredients",
+        arguments: { ingredients: ["200 g de farine"], factor: 2 },
+      }),
+    );
+
+    expect(result.isError).not.toBe(true);
+  });
 
   it("answers a tool error rather than raising when the arguments are refused", async () => {
     const server = createServer({ fetchImpl: forbiddenFetch });

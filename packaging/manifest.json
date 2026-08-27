@@ -43,6 +43,18 @@
     {
       "name": "search_by_ingredients",
       "description": "Find recipes from one to five ingredients a cook already has, through the site's own fridge search."
+    },
+    {
+      "name": "get_recipe",
+      "description": "Read one recipe: ingredients, method, times, rating, nutrition and the cost the site estimates, rescaled to a number of servings on request."
+    },
+    {
+      "name": "scale_ingredients",
+      "description": "Rescale any French ingredient list offline, saying of each line whether the result is exact, rounded to stay usable, or nothing that could be multiplied."
+    },
+    {
+      "name": "get_recipe_translations",
+      "description": "List the other languages a recipe was published in, using the pairing the site itself publishes between its editions."
     }
   ],
   "compatibility": {

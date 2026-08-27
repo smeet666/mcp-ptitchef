@@ -457,8 +457,17 @@ export function chooseReadableUnit(unit: UnitInfo, amount: number): ChosenUnit {
  * of "20 g de levure dissoute dans 1 cuillère à soupe d'eau", which would
  * otherwise sit in a scaled line still saying what the original said.
  */
+/*
+ * The run of digits is matched once and never given back, which a lookahead
+ * capturing it and a backreference replaying it together express. Written as a
+ * plain greedy run, the engine hands one character back at a time and tries
+ * every unit of the vocabulary at each position, so a line of digits, commas
+ * and slashes costs its length squared times that vocabulary. A recipe page is
+ * written by strangers and reaches this without passing through anything that
+ * bounds it.
+ */
 const EMBEDDED_MEASURE = new RegExp(
-  `\\d[\\d.,/]*\\s*(?:${UNIT_KEYS.map((key) => key.replace(/ /g, "\\s+")).join("|")})\\b`,
+  `\\d(?=([\\d.,/]*))\\1\\s*(?:${UNIT_KEYS.map((key) => key.replace(/ /g, "\\s+")).join("|")})\\b`,
   "i",
 );
 

@@ -9,6 +9,15 @@
  * quiet successes, so a slow patch does not become the permanent speed.
  */
 
+/**
+ * Clean answers before the spacing narrows again.
+ *
+ * Two rather than three: the gap halves, so recovering from the ceiling takes
+ * eight clean answers instead of twelve, and a session of ordinary length now
+ * reaches its own pace again rather than only in theory.
+ */
+const CALM_BEFORE_NARROWING = 2;
+
 export interface RateLimiterOptions {
   /** Spacing between requests when nothing has gone wrong. */
   intervalMs: number;
@@ -23,6 +32,7 @@ export class RateLimiter {
   private lastStartedAt = 0;
   private queue: Promise<void> = Promise.resolve();
   private calmStreak = 0;
+  private widenedThisRequest = false;
 
   constructor(options: RateLimiterOptions) {
     this.baseIntervalMs = options.intervalMs;
@@ -63,10 +73,26 @@ export class RateLimiter {
     this.lastStartedAt = Date.now();
   }
 
-  /** Called when the site asks for room: double the gap, up to the ceiling. */
+  /**
+   * Called when the site asks for room: double the gap, up to the ceiling.
+   *
+   * Once per request rather than once per attempt. A request that is refused
+   * four times running is one refusal by the site, and widening on each attempt
+   * takes the gap to its ceiling inside a single call, where it then costs
+   * every later call the wait it earned.
+   */
   pushBack(): void {
+    if (this.widenedThisRequest) {
+      return;
+    }
+    this.widenedThisRequest = true;
     this.calmStreak = 0;
     this.intervalMs = Math.min(this.maxIntervalMs, this.intervalMs * 2);
+  }
+
+  /** Called as a request begins, whatever the one before it came to. */
+  beginRequest(): void {
+    this.widenedThisRequest = false;
   }
 
   /**
@@ -78,7 +104,7 @@ export class RateLimiter {
       return;
     }
     this.calmStreak += 1;
-    if (this.calmStreak < 3) {
+    if (this.calmStreak < CALM_BEFORE_NARROWING) {
       return;
     }
     this.calmStreak = 0;

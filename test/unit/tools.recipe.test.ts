@@ -534,3 +534,53 @@ describe("the cost the site estimates", () => {
     expect(bare.notes.join(" ")).not.toMatch(/estimated cost/i);
   });
 });
+
+describe("two identifiers naming one recipe", () => {
+  it("cost the site one read, since the number is what identifies it", async () => {
+    // The words of an address are decorative. Two identifiers of one recipe
+    // held two entries in the store and cost two reads for one page.
+    let calls = 0;
+    const fetchImpl = (async (): Promise<Response> => {
+      calls += 1;
+      const response = new Response(fixture("recipe-full"), {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+      Object.defineProperty(response, "url", { value: PAGE });
+      return response;
+    }) as unknown as typeof fetch;
+    const client = new PtitchefClient({
+      config: loadConfig({}),
+      logger: createLogger("silent"),
+      fetchImpl,
+    });
+
+    await runWithClock(runGetRecipe(client, args({ id: ID })));
+    await runWithClock(
+      runGetRecipe(client, args({ id: "recettes/accompagnement/autres-mots-fid-101" })),
+    );
+
+    expect(calls).toBe(1);
+  });
+});
+
+describe("an ingredient line longer than one a cook writes", () => {
+  it("comes back as published, saying why, rather than being read", async () => {
+    // The reading walks a line several times over, and a page is written by
+    // strangers. A line of sixty thousand characters is not one to read.
+    const out = structuredOf<{ ingredients: Array<{ scaling: string; note?: string }> }>(
+      runScaleIngredients({ ingredients: [`${"1,".repeat(30_000)} g de farine`], factor: 2 }),
+    );
+
+    expect(out.ingredients[0]?.scaling).toBe("unscaled");
+    expect(out.ingredients[0]?.note).toMatch(/past the 500/i);
+  });
+
+  it("is left alone on a list handed back as published too", async () => {
+    const out = structuredOf<{ ingredients: Array<{ note?: string }> }>(
+      runScaleIngredients({ ingredients: [`${"1,".repeat(30_000)} g`], factor: 1 }),
+    );
+
+    expect(out.ingredients[0]?.note).toMatch(/past the 500/i);
+  });
+});

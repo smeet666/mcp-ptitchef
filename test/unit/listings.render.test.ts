@@ -224,16 +224,55 @@ describe("rows a guide named twice", () => {
 });
 
 describe("a cut no further call can undo", () => {
-  it("says so rather than telling a caller to raise a limit already at its top", () => {
-    const many = { ...report(), results: Array.from({ length: 120 }, () => row()) };
-    const cut = limitRows(many, 100);
+  /** Rows small enough that their number bites before their size does. */
+  const slim = (count: number): ListingReport => ({
+    ...report(),
+    results: Array.from({ length: count }, () => ({
+      ...row(),
+      id: "a-fid-1",
+      url: "u",
+      title: "t",
+      category: null,
+      difficulty: null,
+      ingredients_preview: null,
+    })),
+  });
 
-    expect(cut.note.join(" ")).toMatch(/No call to this tool reaches the rest/i);
+  it("says so rather than telling a caller to raise a limit already at its top", () => {
+    expect(limitRows(slim(120), 100).note.join(" ")).toMatch(
+      /No call to this tool reaches the rest/i,
+    );
   });
 
   it("tells a caller to raise the limit while raising it would help", () => {
-    const many = { ...report(), results: Array.from({ length: 120 }, () => row()) };
+    expect(limitRows(slim(120), 20).note.join(" ")).toContain("Raise 'limit'");
+  });
+});
 
-    expect(limitRows(many, 20).note.join(" ")).toContain("Raise 'limit'");
+describe("an answer whose rows outgrow what one answer carries", () => {
+  it("renders as many as fit and says how to choose the rest", () => {
+    // A row runs to several hundred characters, so a hundred of them make an
+    // answer larger than a tool result carries: the caller then receives
+    // nothing at all, which is worse than receiving fewer rows and being told.
+    const many = { ...report(), results: Array.from({ length: 120 }, () => row()) };
+    const cut = limitRows(many, 100);
+
+    expect(cut.rendered.length).toBeLessThan(100);
+    expect(cut.note.join(" ")).toMatch(/as many as one answer carries/i);
+    expect(JSON.stringify(cut.rendered).length).toBeLessThan(30_000);
+  });
+});
+
+describe("rows set aside in numbers", () => {
+  it("are summarised rather than recited", () => {
+    // Each reason quotes the words its row carried, so a page whose markup
+    // moved sends every row here at once and the note outgrows the answer.
+    const many = Array.from({ length: 40 }, (_, index) => `reason number ${index}`);
+    const note = notesFor(report(), { skipped: many }).join(" ");
+
+    expect(note).toContain("40 rows were set aside");
+    expect(note).toContain("reason number 0");
+    expect(note).toContain("37 more");
+    expect(note).not.toContain("reason number 39");
   });
 });

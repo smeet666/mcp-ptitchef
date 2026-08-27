@@ -166,6 +166,8 @@ describe("fetchPage", () => {
       url: "https://www.ptitchef.com/search",
       userAgent: "test-agent/1.0",
       timeoutMs: overrides.timeoutMs ?? 20_000,
+      maxBodyBytes: 8_000_000,
+      budgetMs: 600_000,
       maxRetries: overrides.maxRetries ?? 3,
       limiter: new RateLimiter({ intervalMs: 1000 }),
       logger: silentLogger(),
@@ -394,6 +396,8 @@ describe("fetchPage", () => {
       url: "https://www.ptitchef.com/search",
       userAgent: "test-agent/1.0",
       timeoutMs: 20_000,
+      maxBodyBytes: 8_000_000,
+      budgetMs: 600_000,
       maxRetries: 0,
       limiter: new RateLimiter({ intervalMs: 1000 }),
       logger: silentLogger(),
@@ -444,6 +448,8 @@ describe("the fetch a caller does not hand over", () => {
       url: "https://www.ptitchef.com/recettes",
       userAgent: "test-agent/1.0",
       timeoutMs: 20_000,
+      maxBodyBytes: 8_000_000,
+      budgetMs: 600_000,
       maxRetries: 0,
       limiter: new RateLimiter({ intervalMs: 1000 }),
       logger: silentLogger(),
@@ -462,6 +468,8 @@ describe("a refusal carrying no body", () => {
         url: "https://www.ptitchef.com/recettes/cat/absente",
         userAgent: "test-agent/1.0",
         timeoutMs: 20_000,
+        maxBodyBytes: 8_000_000,
+        budgetMs: 600_000,
         maxRetries: 0,
         limiter: new RateLimiter({ intervalMs: 1000 }),
         logger: silentLogger(),
@@ -491,6 +499,8 @@ describe("a body that will not be let go of", () => {
         url: "https://www.ptitchef.com/recettes/cat/absente",
         userAgent: "test-agent/1.0",
         timeoutMs: 20_000,
+        maxBodyBytes: 8_000_000,
+        budgetMs: 600_000,
         maxRetries: 0,
         limiter: new RateLimiter({ intervalMs: 1000 }),
         logger: silentLogger(),
@@ -511,6 +521,8 @@ describe("the address a page was served from", () => {
       url: asked,
       userAgent: "test-agent/1.0",
       timeoutMs: 20_000,
+      maxBodyBytes: 8_000_000,
+      budgetMs: 600_000,
       maxRetries: 0,
       limiter: new RateLimiter({ intervalMs: 1000 }),
       logger: silentLogger(),
@@ -546,6 +558,8 @@ describe("a read the site redirected off its own site", () => {
           url: "https://www.ptitchef.com/recettes/brindilles",
           userAgent: "test-agent/1.0",
           timeoutMs: 20_000,
+          maxBodyBytes: 8_000_000,
+          budgetMs: 600_000,
           maxRetries: 0,
           limiter: new RateLimiter({ intervalMs: 1000 }),
           logger: silentLogger(),
@@ -553,5 +567,106 @@ describe("a read the site redirected off its own site", () => {
         }),
       ),
     ).resolves.toMatchObject({ code: "network_error" });
+  });
+});
+
+describe("a body larger than one page of this site", () => {
+  it("is abandoned rather than held whole in memory", async () => {
+    // A deadline abandons a body that arrives slowly. One that arrives quickly
+    // and large is never abandoned by it, and what it costs is the session
+    // rather than the one call.
+    const huge = new Response("z".repeat(400_000), { status: 200 });
+    const rec = recorder(always(() => huge));
+
+    const error = await failure(
+      fetchPage({
+        url: "https://www.ptitchef.com/recettes/brindilles",
+        userAgent: "test-agent/1.0",
+        timeoutMs: 20_000,
+        maxBodyBytes: 100_000,
+        budgetMs: 600_000,
+        maxRetries: 0,
+        limiter: new RateLimiter({ intervalMs: 1000 }),
+        logger: silentLogger(),
+        fetchImpl: rec.impl,
+      }),
+    );
+
+    expect(error.code).toBe("parse_failure");
+    expect(error.message).toContain("100000");
+  });
+
+  it("reads one that fits, whole and unchanged", async () => {
+    const rec = recorder(always(() => new Response("les brindilles", { status: 200 })));
+
+    expect(
+      (
+        await success(
+          fetchPage({
+            url: "https://www.ptitchef.com/recettes/brindilles",
+            userAgent: "test-agent/1.0",
+            timeoutMs: 20_000,
+            maxBodyBytes: 100_000,
+            budgetMs: 600_000,
+            maxRetries: 0,
+            limiter: new RateLimiter({ intervalMs: 1000 }),
+            logger: silentLogger(),
+            fetchImpl: rec.impl,
+          }),
+        )
+      ).body,
+    ).toBe("les brindilles");
+  });
+
+  it("reads an answer carrying no body at all as empty", async () => {
+    const bodiless = { ok: true, status: 200, url: "", body: null } as unknown as Response;
+    const rec = recorder(always(() => bodiless));
+
+    expect(
+      (
+        await success(
+          fetchPage({
+            url: "https://www.ptitchef.com/recettes/brindilles",
+            userAgent: "test-agent/1.0",
+            timeoutMs: 20_000,
+            maxBodyBytes: 100_000,
+            budgetMs: 600_000,
+            maxRetries: 0,
+            limiter: new RateLimiter({ intervalMs: 1000 }),
+            logger: silentLogger(),
+            fetchImpl: rec.impl,
+          }),
+        )
+      ).body,
+    ).toBe("");
+  });
+});
+
+describe("the budget one read is given", () => {
+  it("ends a read that spent it, naming what it cost", async () => {
+    // The deadline governs one attempt and a refusal naming a delay is obeyed,
+    // so without a budget the two add up to minutes on the single queue every
+    // other tool waits behind.
+    const busy = always(() => new Response("", { status: 503, headers: { "retry-after": "20" } }));
+    const rec = recorder(busy);
+
+    const error = await failure(
+      fetchPage({
+        url: "https://www.ptitchef.com/recettes/brindilles",
+        userAgent: "test-agent/1.0",
+        timeoutMs: 20_000,
+        maxBodyBytes: 8_000_000,
+        budgetMs: 5000,
+        maxRetries: 8,
+        limiter: new RateLimiter({ intervalMs: 1000 }),
+        logger: silentLogger(),
+        fetchImpl: rec.impl,
+      }),
+    );
+
+    expect(error.code).toBe("timeout");
+    expect(error.message).toContain("5000ms");
+    // Far fewer than the eight retries it was allowed.
+    expect(rec.calls.length).toBeLessThan(4);
   });
 });

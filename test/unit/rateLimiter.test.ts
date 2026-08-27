@@ -161,17 +161,34 @@ describe("beforeRequest", () => {
 });
 
 describe("pushBack", () => {
-  it("doubles the interval", () => {
+  it("doubles the interval, once for each request the site refused", () => {
     const limiter = new RateLimiter({ intervalMs: 1000 });
+    limiter.beginRequest();
     limiter.pushBack();
     expect(limiter.currentIntervalMs).toBe(2000);
+    limiter.beginRequest();
     limiter.pushBack();
     expect(limiter.currentIntervalMs).toBe(4000);
+  });
+
+  it("widens once for a request refused several times over", () => {
+    // Four attempts of one request are one refusal by the site. Widening on
+    // each would take the gap to its ceiling inside a single call, where it
+    // then costs every later call the wait that call earned.
+    const limiter = new RateLimiter({ intervalMs: 1000 });
+    limiter.beginRequest();
+    limiter.pushBack();
+    limiter.pushBack();
+    limiter.pushBack();
+    limiter.pushBack();
+
+    expect(limiter.currentIntervalMs).toBe(2000);
   });
 
   it("stops at sixteen times the interval by default", () => {
     const limiter = new RateLimiter({ intervalMs: 1000 });
     for (let i = 0; i < 10; i += 1) {
+      limiter.beginRequest();
       limiter.pushBack();
     }
     expect(limiter.currentIntervalMs).toBe(16_000);
@@ -179,10 +196,13 @@ describe("pushBack", () => {
 
   it("stops at the ceiling the caller gave", () => {
     const limiter = new RateLimiter({ intervalMs: 1000, maxIntervalMs: 2500 });
+    limiter.beginRequest();
     limiter.pushBack();
     expect(limiter.currentIntervalMs).toBe(2000);
+    limiter.beginRequest();
     limiter.pushBack();
     expect(limiter.currentIntervalMs).toBe(2500);
+    limiter.beginRequest();
     limiter.pushBack();
     expect(limiter.currentIntervalMs).toBe(2500);
   });
@@ -198,12 +218,15 @@ describe("succeeded", () => {
     expect(limiter.currentIntervalMs).toBe(1000);
   });
 
-  it("halves the interval after three consecutive successes", () => {
+  it("halves the interval after two consecutive successes", () => {
+    // The gap halves, so recovering from the ceiling costs eight clean answers
+    // rather than twelve: a session of ordinary length reaches its own pace
+    // again instead of only in theory.
     const limiter = new RateLimiter({ intervalMs: 1000 });
+    limiter.beginRequest();
     limiter.pushBack();
+    limiter.beginRequest();
     limiter.pushBack();
-    expect(limiter.currentIntervalMs).toBe(4000);
-    limiter.succeeded();
     expect(limiter.currentIntervalMs).toBe(4000);
     limiter.succeeded();
     expect(limiter.currentIntervalMs).toBe(4000);
@@ -222,12 +245,12 @@ describe("succeeded", () => {
 
   it("a pushBack puts the count of successes back to zero", () => {
     const limiter = new RateLimiter({ intervalMs: 1000 });
+    limiter.beginRequest();
     limiter.pushBack();
     limiter.succeeded();
-    limiter.succeeded();
+    limiter.beginRequest();
     limiter.pushBack();
     expect(limiter.currentIntervalMs).toBe(4000);
-    limiter.succeeded();
     limiter.succeeded();
     expect(limiter.currentIntervalMs).toBe(4000);
     limiter.succeeded();

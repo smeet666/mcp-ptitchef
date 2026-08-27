@@ -252,6 +252,8 @@ cannot take effect says so rather than being quietly clamped.
 | `PTC_MAX_RETRIES`       | 3       | 0 to 8                                                                             |
 | `PTC_CACHE_TTL_MS`      | 900000  | 0 to 86400000, 0 turns storage off                                                 |
 | `PTC_CACHE_MAX_ENTRIES` | 200     | 1 to 5000                                                                          |
+| `PTC_MAX_BODY_BYTES`    | 8000000 | 100000 to 64000000. Past it a page is abandoned rather than held whole             |
+| `PTC_BUDGET_MS`         | 60000   | 5000 to 600000. The whole of one read, its retries and their waits included        |
 | `PTC_LOG_LEVEL`         | `error` | `silent`, `error`, `info`, `debug`                                                 |
 
 The pacing floor cannot be lowered from outside. The site is free to read and

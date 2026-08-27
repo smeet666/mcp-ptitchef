@@ -60,6 +60,16 @@
           "isRequired": false
         },
         {
+          "name": "PTC_MAX_BODY_BYTES",
+          "description": "The most one page may run to before the read is abandoned. Default 8000000.",
+          "isRequired": false
+        },
+        {
+          "name": "PTC_BUDGET_MS",
+          "description": "The whole of the time one read may take, retries included. Default 60000.",
+          "isRequired": false
+        },
+        {
           "name": "PTC_LOG_LEVEL",
           "description": "silent, error, info or debug. Default error. Logs go to stderr.",
           "isRequired": false

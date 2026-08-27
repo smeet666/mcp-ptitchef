@@ -195,12 +195,51 @@ export function notesFor(report: ListingReport, options: ListingNotes = {}): str
   }
   const skipped = options.skipped ?? [];
   if (skipped.length > 0) {
-    notes.push(
-      `${skipped.length} ${skipped.length === 1 ? "row was" : "rows were"} set aside: ${skipped.join("; ")}.`,
-    );
+    notes.push(setAside(skipped));
   }
   return [...notes, ...(options.extra ?? [])];
 }
+
+/**
+ * How many rows were set aside, and why, without reciting every one.
+ *
+ * Each reason quotes the words the row carried, so a page whose markup moved
+ * sends every one of its rows here at once. Reciting them all builds a note
+ * longer than the answer it qualifies.
+ */
+export function setAside(reasons: readonly string[]): string {
+  const named = reasons.slice(0, MOST_REASONS_NAMED);
+  const rest = reasons.length - named.length;
+  const more = rest > 0 ? ` and ${rest} more for reasons of the same kind` : "";
+  return `${reasons.length} ${reasons.length === 1 ? "row was" : "rows were"} set aside: ${named.join("; ")}${more}.`;
+}
+
+/** Past this the reasons repeat each other, and the note stops earning its length. */
+const MOST_REASONS_NAMED = 3;
+
+/**
+ * As many rows as one answer carries.
+ *
+ * Measured rather than counted, because a row's size is the site's: a listing
+ * of long titles and long ingredient previews outgrows the budget on fewer rows
+ * than a listing of short ones.
+ */
+function withinBudget(rows: readonly RecipeRow[]): { rendered: RecipeRow[]; outgrew: boolean } {
+  const rendered: RecipeRow[] = [];
+  let held = 0;
+
+  for (const row of rows) {
+    held += JSON.stringify(row).length;
+    if (held > MOST_CHARS_RENDERED && rendered.length > 0) {
+      return { rendered, outgrew: true };
+    }
+    rendered.push(row);
+  }
+  return { rendered, outgrew: false };
+}
+
+/** The most one answer's rows are allowed to run to. */
+const MOST_CHARS_RENDERED = 24_000;
 
 /** One line per row. Every word of it comes from the report. */
 function renderRow(row: RecipeRow): string {
@@ -268,9 +307,20 @@ export function limitRows(
   report: ListingReport,
   limit: number,
 ): { rendered: RecipeRow[]; note: string[] } {
-  const rendered = report.results.slice(0, limit);
+  const { rendered, outgrew } = withinBudget(report.results.slice(0, limit));
   if (rendered.length === report.results.length) {
     return { rendered, note: [] };
+  }
+  // A row runs to several hundred characters, so a hundred of them make an
+  // answer larger than a tool result carries: the caller then receives nothing
+  // at all, which is worse than receiving fewer rows and being told.
+  if (outgrew) {
+    return {
+      rendered,
+      note: [
+        `${rendered.length} of the ${report.results.length} rows this page served are rendered here, which is as many as one answer carries. Ask again with a smaller 'limit' to choose which.`,
+      ],
+    };
   }
   // Raising the limit only helps below the ceiling. At the ceiling the rows are
   // out of reach, and telling a caller to ask again would send them nowhere.

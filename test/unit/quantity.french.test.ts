@@ -147,3 +147,12 @@ describe("a vague measure taken below its floor", () => {
     expect(scaled.note).toMatch(/no longer holds its share/i);
   });
 });
+
+describe("a line too long to read, on a list handed back as published", () => {
+  it("comes back whole, saying why it was not read", () => {
+    const [line] = passthroughIngredients([`${"1,".repeat(30_000)} g de farine`]);
+
+    expect(line?.scaling).toBe("unscaled");
+    expect(line?.note).toMatch(/past the 500/i);
+  });
+});

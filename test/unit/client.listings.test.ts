@@ -474,3 +474,43 @@ describe("the two shapes a search comes back as without a listing", () => {
     expect(second.cached).toBe(true);
   });
 });
+
+describe("two callers asking one question at once", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("ask it of the site once", async () => {
+    // Between a miss in the store and the write that follows it there are
+    // several awaits. A second caller arriving inside that window used to see
+    // an empty store and set off again, so the site received one request per
+    // caller for one page.
+    const fake = fakeFetch(fixture("listing-first"));
+    const client = clientFor(fake.fetchImpl);
+
+    const both = Promise.all([
+      client.browseRecipes({ category: "brindilles" }),
+      client.browseRecipes({ category: "brindilles" }),
+      client.browseRecipes({ category: "brindilles" }),
+    ]);
+    const [first, second] = await runWithClock(both);
+
+    expect(fake.calls).toHaveLength(1);
+    expect(second?.data.results).toEqual(first?.data.results);
+  });
+
+  it("leaves nothing behind, so a later caller reads afresh when the store lets go", async () => {
+    const fake = fakeFetch(fixture("listing-first"));
+    const client = clientFor(fake.fetchImpl, { PTC_CACHE_TTL_MS: "0" });
+
+    await runWithClock(client.browseRecipes({ category: "brindilles" }));
+    await runWithClock(client.browseRecipes({ category: "brindilles" }));
+
+    expect(fake.calls).toHaveLength(2);
+  });
+});

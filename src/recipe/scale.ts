@@ -139,6 +139,28 @@ const withoutBullet = (line: string): string => line.replace(BULLET, "").trim();
  */
 const HALF_STAYS_BELOW = 10;
 
+/**
+ * The longest line worth reading as an ingredient.
+ *
+ * A page is written by strangers, and the reading below walks a line several
+ * times over. No cook writes an ingredient past a couple of hundred characters,
+ * so a line beyond this is not one to read: it comes back as published, saying
+ * why, rather than costing the caller a wait for an answer it will not get.
+ */
+const LONGEST_LINE = 500;
+
+/** A line handed back whole, because it is too long to be read as one. */
+const tooLong = (line: string): ScaledIngredient => ({
+  original: line,
+  text: line,
+  amount: null,
+  amount_max: null,
+  unit: null,
+  scaling: "unscaled",
+  adjusted: false,
+  note: `This line runs to ${line.length} characters, past the ${LONGEST_LINE} an ingredient is read within, so it was returned as published.`,
+});
+
 /** True when a number is a whole or a half, to the last bit of precision. */
 function isHalfStep(value: number): boolean {
   return Math.abs(value * 2 - Math.round(value * 2)) < 1e-9;
@@ -863,6 +885,9 @@ function splitBranch(text: string, parsed: ParsedIngredient): Branch | null {
  */
 export function scaleIngredient(line: string, options: ScaleOptions): ScaledIngredient {
   const { factor } = options;
+  if (line.length > LONGEST_LINE) {
+    return tooLong(line);
+  }
   // A factor of one changes nothing, and rewriting the line anyway would round
   // "178 ml" to "180 ml" and report a difference the caller never asked for.
   if (factor === 1) {
@@ -1326,6 +1351,9 @@ export function scaleIngredients(lines: string[], options: ScaleOptions): Scaled
  * `unscaled` and says why.
  */
 export function passthroughIngredient(line: string): ScaledIngredient {
+  if (line.length > LONGEST_LINE) {
+    return tooLong(line);
+  }
   const parsed = parseIngredient(line);
   const held = parsed.amount === null || parsed.heldBack !== null;
 

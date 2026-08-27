@@ -166,7 +166,7 @@ which arrived.** A search the site sends to a category page reports that
 category's total; a search it answers itself reports the number of rows it
 served. Summing the two would add a catalogue to a page.
 
-**A rating is the figure the site computed, not the one it drew.** A row states
+**A rating is the figure the site computed.** A row states
 3.8 in its payload and draws four stars. The drawn figure is left alone.
 
 **A page past the last one comes back as the page the site served.** The site
@@ -178,12 +178,12 @@ recipes for three ingredients, offers twenty-four of them on one page, and links
 no other. The answer states both figures and says the rest cannot be read.
 
 **A guide is not a listing, and the answer says which arrived.** Some topics are
-served as a guide the site wrote — recipes grouped under headings of its own,
+served as a guide the site wrote: recipes grouped under headings of its own,
 with no total, and rows carrying only a name and an address. `kind` says `guide`
 there, and `browse_recipes` on the same slug reads the topic's full listing with
 its total: `épinards` comes back as a guide of 32, and its listing holds 736.
 
-**Another recipe served in place of one is an absence, not an answer.** The words
+**Another recipe served in place of one is rendered as an absence.** The words
 of a recipe's address are decorative and its number is not: asking for a number
 the site does not hold brings back an unrelated recipe, in HTTP 200 and full
 detail. The number that came back is compared with the number asked for.
@@ -318,7 +318,7 @@ sur un niveau qu'il n'a jamais demandé.
 Ce serveur publie l'arbre, pour qu'une catégorie s'ouvre par le nom que le site
 lui a donné.
 
-## L'outil
+## Les outils
 
 ### `list_categories`
 
@@ -329,31 +329,120 @@ famille il rend ce qu'elle contient.
 | Argument | Type              | Sens                                                                                           |
 | -------- | ----------------- | ---------------------------------------------------------------------------------------------- |
 | `family` | chaîne, optionnel | Le slug d'une famille à ouvrir, issu d'un appel précédent. Absent, l'arbre est lu à sa racine. |
-| `limit`  | entier, optionnel | Entrées rendues, 50 par défaut, 200 au plus.                                                   |
+| `limit`  | entier, optionnel | Entrées rendues, 20 par défaut, 200 au plus.                                                   |
+
+### `search_recipes`
+
+Cherche par plat ou par ingrédient. Le site répond de cinq façons, et `kind` dit
+laquelle : `topic` quand il envoie la recherche sur une page de catégorie à lui,
+`free_text` quand il répond sur ses propres termes, `guide` quand il a rédigé un
+guide pour ce sujet, `recipe` quand il juge les mots assez précis pour ouvrir une
+fiche, et `unmatched` quand il sert sa page d'accueil faute d'avoir compris.
+
+| Argument | Type              | Sens                                        |
+| -------- | ----------------- | ------------------------------------------- |
+| `query`  | chaîne            | Un plat ou un ingrédient, en français.      |
+| `limit`  | entier, optionnel | Lignes rendues, 20 par défaut, 100 au plus. |
+
+### `browse_recipes`
+
+Parcourt une catégorie page par page, ou l'une des trois listes que le site tient
+à jour.
+
+| Argument   | Type                                     | Sens                                                              |
+| ---------- | ---------------------------------------- | ----------------------------------------------------------------- |
+| `category` | chaîne, optionnel                        | Un slug de `list_categories`, ou le `topic_slug` d'une recherche. |
+| `listing`  | `latest` \| `top_rated` \| `most_viewed` | L'une des listes permanentes du site.                             |
+| `page`     | entier, optionnel                        | La page d'une catégorie à lire.                                   |
+| `limit`    | entier, optionnel                        | Lignes rendues, 20 par défaut.                                    |
+
+### `search_by_ingredients`
+
+Lit la recherche du frigo du site : de un à cinq ingrédients en entrée, les
+recettes qui les contiennent en sortie.
+
+| Argument      | Type              | Sens                                   |
+| ------------- | ----------------- | -------------------------------------- |
+| `ingredients` | chaîne[]          | De un à cinq ingrédients, en français. |
+| `limit`       | entier, optionnel | Lignes rendues, 20 par défaut.         |
+
+### `get_recipe`
+
+Lit une recette, et remet ses ingrédients à l'échelle sur demande.
+
+| Argument   | Type              | Sens                                                       |
+| ---------- | ----------------- | ---------------------------------------------------------- |
+| `id`       | chaîne            | Le `id` d'une ligne rendue par une recherche ou une liste. |
+| `servings` | entier, optionnel | Remet les ingrédients à l'échelle pour ce nombre de parts. |
+
+Chaque ligne porte un `scaling` qui dit ce que l'arithmétique a fait : `scaled`
+est exact, `rounded` a été déplacé pour rester utilisable, `unscaled` ne portait
+rien à multiplier. Doubler `1 oeuf` donne `2 oeufs` ; le diviser par deux donne
+`1 oeuf` marqué `rounded`, parce qu'un demi-œuf n'est pas une quantité qu'une
+cuisine mesure.
+
+### `scale_ingredients`
+
+La même arithmétique, hors ligne, sur n'importe quelle liste française quelle
+qu'en soit la source.
+
+| Argument                         | Type     | Sens                                   |
+| -------------------------------- | -------- | -------------------------------------- |
+| `ingredients`                    | chaîne[] | Les lignes à remettre à l'échelle.     |
+| `factor`                         | nombre   | Le multiplicateur à appliquer.         |
+| `from_servings` et `to_servings` | nombres  | Ou la paire dont le facteur se déduit. |
+
+### `get_recipe_translations`
+
+Liste les autres langues dans lesquelles une recette a été publiée. Ptitchef est
+l'édition française d'un réseau de sites qui publient les mêmes recettes, et
+chaque page nomme ses homologues. Combien il y en a appartient à la recette : une
+récente en nomme plus de vingt, une ancienne aucune.
 
 ## Ce que les réponses refusent d'affirmer
 
-**Un niveau substitué n'est pas le niveau demandé.** Une famille inconnue est
-répondue en HTTP 200 par la racine de l'arbre, donc l'adresse d'où la réponse
-revient décide de quel niveau il s'agit. Une famille que le site ne tient pas
-rend `not_found`, plutôt que les catégories qu'il a proposées à la place.
+**Un guide n'est pas une liste, et la réponse dit lequel est arrivé.** Certains
+sujets sont servis par un guide que le site rédige, sans total, dont les lignes
+portent un nom, une adresse, une image et un nombre de votes. `kind` vaut `guide`
+là, et `browse_recipes` sur le même slug rend la liste complète du sujet avec son
+total : `épinards` rend un guide de 32 recettes, sa liste en tient 736.
 
-**Les entrées montrées à côté d'une famille sont un échantillon.** La racine en
-montre trois, suivies de trois points que le site imprime lui-même. Elles sont
-rendues sous `sample_children` avec une note qui dit ce qu'elles sont : les
-rendre comme le contenu de la famille offrirait une famille de quatre-vingt-dix
-comme une famille de trois.
+**Une recette servie à la place d'une autre est rendue comme une absence.** Les
+mots d'une adresse de recette sont décoratifs et son numéro ne l'est pas :
+demander un numéro que le site ne tient pas ramène une recette sans rapport, en
+HTTP 200 et en détail complet. Le numéro revenu est comparé au numéro demandé.
 
-**Deux compteurs, parce qu'ils répondent à deux questions.**
-`categories_published` est ce que la page a listé et `category_count` est ce que
-la réponse a rendu. Ils diffèrent dès qu'une limite a coupé la liste, et la note
-dit de combien.
+**Une page dont la liste est illisible n'est pas une absence.** Un titre portant
+un compte et aucune liste lisible est une page que ce serveur ne sait pas lire,
+et c'est ce qu'il rend plutôt que « aucune recette, le site dit qu'il en tient
+3200 ».
 
-**Une entrée sans adresse est écartée plutôt que rendue.** Un titre publié sans
-lien ne porte aucun slug à repasser : il est écarté, compté, et nommé dans les
-notes.
+**Une note est le chiffre que le site a calculé.** Une ligne annonce 3,8 dans sa
+charge et dessine quatre étoiles ; c'est le chiffre calculé qui est publié, et un
+guide qui n'en calcule aucun n'en publie aucun.
 
-**Une description que la page ne porte pas vaut `null`, jamais une chaîne vide.**
+**Ce qu'un total compte est lu sur la réponse.** Une recherche que le site envoie
+sur une page de catégorie rend le total de cette catégorie ; une recherche qu'il
+traite lui-même rend ce qu'il a compté, qui dépasse parfois les lignes servies.
+La note ne le dit que là où les deux chiffres l'établissent.
+
+**Rien n'est multiplié à l'aveugle.** Un dénombrable tombe sur la plus petite
+part qu'un cuisinier prend d'un seul : un entier là où la moitié d'un ne se
+mesure pas, un œuf ; une moitié là où elle se verse ou se coupe, un sachet. Une
+masse descend d'unité avant d'être arrondie, donc une quantité sous l'unité ne
+tombe jamais à zéro. Une pincée garde son propre vocabulaire et voit son compte
+multiplié, parce que la taille d'une est celle du cuisinier.
+
+**Une liste rendue sans mise à l'échelle le dit une fois**, plutôt que ligne par
+ligne. Sans `servings` il n'y a pas d'arithmétique, et marquer chaque ligne
+`unscaled` affirmerait qu'aucune ne porte rien à multiplier.
+
+**Le coût estimé est répété, jamais recalculé.** C'est le chiffre du site, publié
+pour le nombre de parts que la page annonce, et la réponse dit lequel.
+
+**Une adresse lue dans une page ne quitte pas ce site.** Une ligne qui pointe
+ailleurs est écartée plutôt que publiée sous l'étiquette « la page publique de la
+recette ».
 
 ## Installation
 

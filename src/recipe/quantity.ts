@@ -63,18 +63,16 @@ export function parseLeadingQuantity(text: string): ParsedQuantity | null {
   if (mixedGlyph) {
     const [whole = "", glyph = ""] = mixedGlyph.slice(1);
     const fraction = VULGAR_FRACTIONS[glyph];
-    /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 1 -- Both halves of a fraction are written into the pattern, so a match 
+       carries them; this narrows the type. */
     if (fraction !== undefined) {
       return { amount: Number(whole) + fraction, length: offset + mixedGlyph[0].length };
     }
   }
 
   const leading = trimmed[0];
-  /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 1 -- The character matched came from the table this reads, so the lookup 
+     finds it; this narrows the type. */
   const bare = leading === undefined ? undefined : VULGAR_FRACTIONS[leading];
   if (bare !== undefined) {
     return { amount: bare, length: offset + 1 };
@@ -104,9 +102,8 @@ export function parseLeadingQuantity(text: string): ParsedQuantity | null {
   if (decimal) {
     const [digits = ""] = decimal.slice(1);
     const amount = Number(digits.replace(",", "."));
-    /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 1 -- The pattern matches on digits, so what it captured always reads as a 
+       number. */
     if (Number.isFinite(amount)) {
       return { amount, length: offset + decimal[0].length };
     }
@@ -153,9 +150,8 @@ export function parseLeadingArticle(text: string): ParsedArticle | null {
 
   const [word = ""] = match.slice(1);
   const amount = ARTICLE_AMOUNTS[word.toLowerCase()];
-  /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 2 -- An article is looked up only after its own table matched it, so the 
+     amount is always found. */
   if (amount === undefined) {
     return null;
   }
@@ -221,9 +217,8 @@ function matchLeadingUnit(text: string, partitive = false): MatchedUnit | null {
       continue;
     }
     const unit = lookupUnit(key);
-    /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 2 -- The key came from the vocabulary this looks it up in, so it is 
+       always found. */
     if (!unit) {
       continue;
     }
@@ -242,9 +237,8 @@ function matchLeadingUnit(text: string, partitive = false): MatchedUnit | null {
   if (measure) {
     return {
       unit: measure.unit,
-      /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+      /* v8 ignore next 1 -- A string split on whitespace always yields a first piece; this 
+         narrows the type. */
       unitText: text.trim().split(WHITESPACE)[0] ?? "",
       rest: measure.rest,
     };
@@ -379,9 +373,8 @@ function statesItemSize(item: string): boolean {
   }
 
   const named = item.slice(0, attached.index).trim();
-  /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 2 -- The caller checked the name before asking, so it is neither absent nor 
+     a figure. */
   if (!named || DIGIT.test(named)) {
     return false;
   }
@@ -397,9 +390,7 @@ function isStatedSize(text: string): boolean {
   }
 
   const measure = matchLeadingUnit(text.slice(size.length).trimStart());
-  /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 2 -- Reached only for a bracket already read as a measured quantity. */
   if (measure?.unit.kind !== "measured") {
     return false;
   }
@@ -645,9 +636,8 @@ export function parseIngredient(line: string): ParsedIngredient {
     alternates: slashed ? slashed.measures : bracketed.measures,
     alternateStyle: alternateStyleOf(slashed !== null, bracketed.measures.length > 0),
     item,
-    /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 1 -- An article names a word wherever it produced the amount; this 
+       narrows the type. */
     articleWord: fromArticle ? (article?.word ?? null) : null,
     countMultiplier: multiplier?.times ?? null,
   };
@@ -696,9 +686,8 @@ function takeAlternates(text: string): { measures: Measure[]; rest: string } {
     });
   }
 
-  /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 2 -- A bracket that read as measures holds at least one; the emptiness was 
+     ruled out above. */
   if (measures.length === 0) {
     return { measures: [], rest: text };
   }
@@ -722,17 +711,15 @@ function takeSlashAlternates(text: string): { measures: Measure[]; rest: string 
     const after = rest.slice(1).trimStart();
     const range = parseLeadingRange(after);
     const quantity = range ?? parseLeadingQuantity(after);
-    /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 2 -- The loop is entered only where a quantity was read, and it consumes 
+       what it read. */
     if (!quantity) {
       break;
     }
 
     const taken = matchLeadingUnit(after.slice(quantity.length).trimStart());
-    /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 2 -- A measure follows every quantity this loop reads, having been 
+       checked as it was read. */
     if (!taken) {
       break;
     }
@@ -781,9 +768,8 @@ export function parseLeadingRange(text: string): ParsedRange | null {
   }
   // A slash between two numbers is a fraction, which parseLeadingQuantity has
   // already consumed if it was one.
-  /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 2 -- A slash between two numbers is a fraction, which the reader above 
+     already consumed. */
   if (separator[1] === "/") {
     return null;
   }
@@ -796,9 +782,8 @@ export function parseLeadingRange(text: string): ParsedRange | null {
   return {
     amount: low.amount,
     max: high.amount,
-    /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 1 -- The separator matched is the group this reads; the fallback narrows 
+       the type. */
     separator: separator[1] ?? "",
     length: low.length + separator[0].length + high.length,
   };

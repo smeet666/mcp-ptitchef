@@ -48,23 +48,17 @@ describe("what a listing's total counts", () => {
   });
 });
 
-describe("the page a search was answered from", () => {
-  it("is offered back for its further pages", () => {
+describe("what the notes carry", () => {
+  it("says what this listing's total counts", () => {
+    expect(notesFor(report({ kind: "topic" })).join(" ")).toMatch(/category page of its own/i);
+  });
+
+  it("says nothing that holds for every answer alike", () => {
+    // Where to pass a slug back is true of every listing, so it is written in
+    // the schema, which a caller reads once rather than on every call.
     const notes = notesFor(report({ kind: "topic", topic_slug: "tarte-aux-pommes" })).join(" ");
 
-    expect(notes).toContain("tarte-aux-pommes");
-    expect(notes).toContain("browse_recipes");
-  });
-
-  it("is not offered when the site answered on its own terms", () => {
-    expect(notesFor(report({ kind: "free_text", topic_slug: null })).join(" ")).not.toContain(
-      "browse_recipes",
-    );
-  });
-
-  it("is not offered for a category that was opened directly", () => {
-    // The caller already holds that slug; naming it back says nothing.
-    expect(notesFor(report({ kind: "category" })).join(" ")).not.toContain("browse_recipes");
+    expect(notes).not.toContain("Pass topic_slug");
   });
 });
 

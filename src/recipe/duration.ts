@@ -93,7 +93,8 @@ export function parseYield(value: unknown): ParsedYield {
 
   // Both groups are written into the pattern, so a match always carries them;
   // the fallbacks below are what narrow the types.
-  /* v8 ignore start */
+  /* v8 ignore start -- Both groups are written into the pattern, so a match
+     carries them; the fallbacks narrow the types. */
   const digits = match[1] ?? "";
   const unit = (match[2] ?? "").trim() || null;
   /* v8 ignore stop */

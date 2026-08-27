@@ -32,6 +32,8 @@ const EGG_WHITE = /\bblancs? de? /;
 const EGG_WHITE_NAMED = /\bblancs? de? oeufs?\b/;
 const PLURAL_ENDING = /s$|eaux$|aux$/i;
 const SIBILANT_ENDING = /[sxz]$/i;
+/** A word the page ended on a letter, which is what a plural mark attaches to. */
+const LETTER_ENDING = /\p{L}$/u;
 const EAU_ENDING = /eau$/i;
 const AL_ENDING = /al$/i;
 const EAUX_ENDING = /eaux$/i;
@@ -343,9 +345,8 @@ function roundCountable(
   divisibility: Divisibility,
   ceiling: number,
 ): CountableResult {
-  /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 2 -- A factor is positive and a published amount is positive, so their 
+     product is. */
   if (value <= 0) {
     return { value: 0, clamped: false };
   }
@@ -386,9 +387,8 @@ function roundCountable(
     const candidates = steps.filter(
       (candidate) => candidate >= floor && candidate <= Math.max(ceiling, floor),
     );
-    /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 1 -- The steps always keep one candidate at or above the floor; this 
+       narrows the type. */
     let closest = candidates[0] ?? floor;
     for (const candidate of candidates) {
       if (Math.abs(value - candidate) < Math.abs(value - closest)) {
@@ -406,9 +406,8 @@ function roundCountable(
  * in the fractions printed on a measuring set.
  */
 function roundSpoon(value: number, ceiling: number): CountableResult {
-  /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 2 -- A factor is positive and a published amount is positive, so their 
+     product is. */
   if (value <= 0) {
     return { value: 0, clamped: false };
   }
@@ -417,9 +416,8 @@ function roundSpoon(value: number, ceiling: number): CountableResult {
     const candidates = [SMALLEST_USABLE_FRACTION, 1 / 3, 0.5, 2 / 3, 0.75, 1].filter(
       (candidate) => candidate <= Math.max(ceiling, SMALLEST_USABLE_FRACTION),
     );
-    /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 1 -- The fractions always keep one candidate under the ceiling; this 
+       narrows the type. */
     let closest = candidates[0] ?? SMALLEST_USABLE_FRACTION;
     for (const candidate of candidates) {
       if (Math.abs(value - candidate) < Math.abs(value - closest)) {
@@ -525,9 +523,8 @@ function scaleMeasure(
    * read.
    */
   const positive = ends.map((end) => end.raw).filter((raw) => raw > 0);
-  /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 1 -- A line reaching here carries a positive amount, so the list is never 
+     empty. */
   const reference = positive.length > 0 ? Math.min(...positive) : low * factor;
 
   /** Both bounds share one unit, and each keeps the precision that unit affords. */
@@ -564,9 +561,8 @@ function scaleMeasure(
     if (stepped.ratio !== 1) {
       const bounds = eachEnd(({ published, raw }) => {
         const exact = raw * stepped.ratio;
-        /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+        /* v8 ignore next 1 -- A spoon steps down only where the recipe is being reduced, so 
+           the factor is under one. */
         const ceiling = factor < 1 ? published * stepped.ratio : Number.POSITIVE_INFINITY;
         const rounded = roundSpoon(exact, ceiling);
         return { amount: rounded.value, exact, clamped: rounded.clamped, raw };
@@ -628,17 +624,15 @@ function scaleMeasure(
  * the second is a plural of "clou".
  */
 function agreeWithAmount(item: string, amount: number): string {
-  /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 2 -- The caller writes the item before asking, and an empty one is handled 
+     where it is read. */
   if (!item) {
     return item;
   }
 
   const words = item.split(" ");
-  /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 1 -- A string split on whitespace always yields a first piece; this narrows 
+     the type. */
   const head = words[0] ?? "";
   if (head.length <= 3) {
     return item;
@@ -647,31 +641,8 @@ function agreeWithAmount(item: string, amount: number): string {
   const wantsPlural = amount >= 2;
   const isPlural = PLURAL_ENDING.test(head);
 
-  if (wantsPlural && !isPlural) {
-    // Words ending in -s, -x or -z do not take a plural mark.
-    if (SIBILANT_ENDING.test(head)) {
-      // The head stays as written.
-    }
-    // "morceau" and "bocal" take -x and -aux where the ordinary noun takes -s.
-    else if (EAU_ENDING.test(head)) {
-      words[0] = `${head}x`;
-    } else if (AL_ENDING.test(head)) {
-      words[0] = `${head.slice(0, -2)}aux`;
-    } else {
-      words[0] = `${head}s`;
-    }
-  } else if (!wantsPlural && isPlural) {
-    if (EAUX_ENDING.test(head)) {
-      words[0] = head.slice(0, -1);
-    } else if (AUX_ENDING.test(head)) {
-      words[0] = `${head.slice(0, -3)}al`;
-    }
-    // "ananas", "anis", "couscous": the -s belongs to the singular.
-    else if (INVARIABLE_NOUN.has(foldWord(head))) {
-      // The head stays as written.
-    } else {
-      words[0] = head.slice(0, -1);
-    }
+  if (wantsPlural !== isPlural) {
+    words[0] = wantsPlural ? headPlural(head) : headSingular(head);
   }
 
   const last = words.length - 1;
@@ -692,6 +663,59 @@ function agreeWithAmount(item: string, amount: number): string {
  * The word is the same whatever the number, so the ending a plural would give
  * back belongs to the singular and must stay.
  */
+/**
+ * The plural of the word a line counts.
+ *
+ * A word ending in -s, -x or -z takes no mark, and neither does one the page
+ * ended on something other than a letter: "tomate(s)" is already written for
+ * both numbers. "morceau" and "bocal" take -x and -aux where the ordinary noun
+ * takes -s.
+ */
+function headPlural(head: string): string {
+  if (SIBILANT_ENDING.test(head) || !LETTER_ENDING.test(head)) {
+    return head;
+  }
+  if (EAU_ENDING.test(head)) {
+    return `${head}x`;
+  }
+  if (AL_ENDING.test(head)) {
+    return `${head.slice(0, -2)}aux`;
+  }
+  return `${head}s`;
+}
+
+/**
+ * The singular of the word a line counts.
+ *
+ * The ending settles nothing on its own: "jus" and "clous" both end in -us, and
+ * the first is a singular where the second is a plural of "clou". So the -s of a
+ * noun that carries one in the singular is kept by name, and so is the -s of an
+ * adjective a line put in front of what it counts: trimming the "gros" of
+ * "2 gros oeufs" writes "gro", which is no word.
+ */
+function headSingular(head: string): string {
+  if (EAUX_ENDING.test(head)) {
+    return head.slice(0, -1);
+  }
+  if (AUX_ENDING.test(head)) {
+    return `${head.slice(0, -3)}al`;
+  }
+  const folded = foldWord(head);
+  if (INVARIABLE_NOUN.has(folded) || INVARIABLE_ADJECTIVE.has(folded)) {
+    return head;
+  }
+  return head.slice(0, -1);
+}
+
+/**
+ * Adjectives carrying a final -s in both numbers.
+ *
+ * A line writes them in front of what it counts, where the reading above takes
+ * the first word for the noun. Trimming their -s to make a singular writes a
+ * word nobody uses.
+ */
+const INVARIABLE_ADJECTIVE = new Set(["gros", "epais", "frais", "gras", "bas", "vieux", "doux"]);
+
 const INVARIABLE_NOUN = new Set([
   "ananas",
   "anis",
@@ -795,7 +819,13 @@ function agreeTrailingAdjective(word: string, wantsPlural: boolean): string | nu
 function agreeLeadingAdjective(word: string, amount: number): string {
   const wantsPlural = amount >= 2;
   const folded = foldWord(word);
-  const isPlural = folded.endsWith("s") && !AGREEABLE_ADJECTIVES.has(folded);
+  // An adjective the vocabulary already knows with its -s is invariable, and
+  // one whose singular the vocabulary does not know is left alone below:
+  // trimming "gros" writes "gro", which is no word.
+  const isPlural =
+    folded.endsWith("s") &&
+    !AGREEABLE_ADJECTIVES.has(folded) &&
+    AGREEABLE_ADJECTIVES.has(folded.slice(0, -1));
   const singular = isPlural ? word.slice(0, -1) : word;
 
   if (!AGREEABLE_ADJECTIVES.has(foldWord(singular))) {
@@ -818,9 +848,8 @@ function agreeLeadingAdjective(word: string, amount: number): string {
 const MUTE_H_WORDS = /^(?:huile|huiles|huitre|huitres|huître|huîtres|herbe|herbes|hysope)\b/i;
 
 function joinItem(item: string): string {
-  /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 2 -- The caller writes the item before asking, and an empty one is handled 
+     where it is read. */
   if (!item) {
     return "";
   }
@@ -854,7 +883,8 @@ interface Branch {
 function splitBranch(text: string, parsed: ParsedIngredient): Branch | null {
   // The name was read out of this very line, so it is always found in it; the
   // guard below is what narrows the type.
-  /* v8 ignore start */
+  /* v8 ignore start -- The name was read out of this very line, so it is always
+     found in it; the guard narrows the type. */
   const itemStart = parsed.item ? text.indexOf(parsed.item) : text.length;
   if (itemStart < 0) {
     return null;
@@ -917,9 +947,8 @@ export function scaleIngredient(line: string, options: ScaleOptions): ScaledIngr
  */
 function scaleBranchedLine(line: string, branch: Branch, options: ScaleOptions): ScaledIngredient {
   const head = scaleSingleLine(branch.head, options);
-  /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 2 -- A branch is split only where its head carried a quantity, so the head 
+     always scales. */
   if (head.scaling === "unscaled") {
     return { ...head, text: line.trim(), original: line };
   }
@@ -956,9 +985,7 @@ function scaleAlternative(
 ): { text: string; rewritten: boolean } {
   const parsed = parseIngredient(tail);
   const published = tail.trim();
-  /* v8 ignore next 2 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 2 -- An alternative branch is scaled only after its own quantity was read. */
   if (parsed.amount === null) {
     return { text: published, rewritten: false };
   }
@@ -988,15 +1015,13 @@ function itemLabelFor(unit: UnitInfo | null, item: string, counted: string): str
   if (unit) {
     return joinItem(item);
   }
-  /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 1 -- A line with no unit names what it counts, and one with a unit took the 
+     branch above. */
   if (counted) {
     return ` ${counted}`;
   }
-  /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 1 -- A line carrying neither a unit nor a name for what it
+     counts carries no quantity, and is answered where the quantity is read. */
   return "";
 }
 
@@ -1074,19 +1099,20 @@ function noteForScaledLine(outcome: LineOutcome): string | undefined {
     );
     // Reached only where the amount comes out exact and the equivalent beside
     // it does not, which the French unit ladders never produce.
-    /* v8 ignore start */
+    /* v8 ignore start -- Reached only where the amount comes out exact and the
+       equivalent beside it does not, which the French unit ladders never
+       produce. */
   } else if (movedAlternate) {
     // The amount itself came out exact, and only the equivalent beside it had to
     // move. Saying "rounded from 300 g" when 300 g is exact would send a cook
     // looking for an error that is not there.
-    /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 1 -- Reached only where the amount comes out exact and the
+       equivalent beside it does not, which the French unit ladders never
+       produce. */
     sentences.push(
       `The amount is exact; the equivalent ${
-        /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+        /* v8 ignore next 1 -- Reached only from the branch above, which the
+           French unit ladders never produce. */
         restated ? "beside it" : "in brackets"
       } was rounded to stay readable.`,
     );
@@ -1144,9 +1170,8 @@ function noteForScaledLine(outcome: LineOutcome): string | undefined {
     // `amount` carries the product once a word such as "douzaine" has multiplied
     // it, and quoting that back would credit the article with a figure it never
     // gave.
-    /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 1 -- An article names a word only where it also gave an amount; this 
+       narrows the type. */
     const stood = (parsed.amount ?? 0) / (parsed.countMultiplier ?? 1);
     const read = `"${parsed.articleWord}" read as ${formatAmount(stood)}.`;
     note = note ? `${read} ${note}` : read;
@@ -1317,14 +1342,14 @@ function renderMeasure(measure: Measure, factor: number): { text: string; bounds
   return {
     text: `${renderRange(
       asText(low.amount),
-      /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+      /* v8 ignore next 1 -- A range keeps both its bounds through scaling, so the upper one is 
+         always there. */
       high === null ? null : asText(high.amount),
       measure.rangeSeparator,
       // A line with no unit takes the other side of this, which the branch above
       // already returned.
-      /* v8 ignore start */
+      /* v8 ignore start -- A line with no unit takes the other side of this,
+         which the branch above already returned. */
     )}${unit ? ` ${formatUnit(unit, shown)}` : ""}`,
     /* v8 ignore stop */
     bounds: scaled.bounds,
@@ -1380,7 +1405,8 @@ export function passthroughIngredient(line: string): ScaledIngredient {
   if (parsed.articleWord) {
     // An article names a word only where it also gave an amount, so the
     // fallback below narrows the type and no state reaches it.
-    /* v8 ignore start */
+    /* v8 ignore start -- An article names a word only where it also gave an
+       amount; the fallbacks narrow the types. */
     const stood = (parsed.amount ?? 0) / (parsed.countMultiplier ?? 1);
     /* v8 ignore stop */
     const read = `"${parsed.articleWord}" read as ${formatAmount(stood)}.`;

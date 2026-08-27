@@ -1,8 +1,8 @@
 /**
  * French cooking unit vocabulary and what scaling means for each.
  *
- * The distinction that matters is not metric versus imperial, it is what shape
- * the scaled number has to take. "200 g" doubled is "400 g". "1 pincée" doubled
+ * What decides how a unit is treated is the shape the scaled number has to
+ * take. "200 g" doubled is "400 g". "1 pincée" doubled
  * is "2 pincées": the pinch keeps whatever size the cook's fingers give it, and
  * the count is what carries the recipe's proportion.
  */
@@ -330,9 +330,8 @@ export function demoteUnit(unit: UnitInfo): { unit: UnitInfo; per: number } | nu
     return null;
   }
   const target = lookupUnit(step.to);
-  /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+  /* v8 ignore next 1 -- The ladder names units the vocabulary holds, so the step is always 
+     found. */
   return target ? { unit: target, per: step.per } : null;
 }
 
@@ -438,9 +437,8 @@ export function chooseReadableUnit(unit: UnitInfo, amount: number): ChosenUnit {
   const up = PROMOTIONS[current.canonical];
   if (up && amount * ratio >= up.per) {
     const target = lookupUnit(up.to);
-    /* v8 ignore next 1 -- A defence the suite does not reach. It is kept
-     rather than removed because what it guards against is a shape the site
-     could publish, and reaching it would take an input nobody has seen. */
+    /* v8 ignore next 1 -- The ladder names units the vocabulary holds, so the step is always 
+       found. */
     if (target) {
       ratio /= up.per;
       current = target;

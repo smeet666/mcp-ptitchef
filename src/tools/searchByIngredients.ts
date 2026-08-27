@@ -23,7 +23,7 @@ import {
 import type { ToolResult } from "./shared.js";
 
 export const searchByIngredientsDescription =
-  "Find Ptitchef recipes from ingredients you already have. Give one to " +
+  "Find Ptitchef recipes from the ingredients a cook already has. Give one to " +
   `${MAX_FRIDGE_INGREDIENTS} ingredients in French, as a cook would name them ("poulet", "citron"). ` +
   "The site counts every recipe it finds and serves one page of them, so 'total_available' can be " +
   "far larger than the rows returned, and the rest cannot be reached. A longer list than the site's " +

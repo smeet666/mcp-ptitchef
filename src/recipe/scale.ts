@@ -63,8 +63,13 @@ export interface ScaledIngredient {
    * "kg". The bare number can therefore shrink while the quantity grows.
    */
   amount: number | null;
-  /** Upper bound when the line gives a range, null otherwise. */
-  amountMax: number | null;
+  /**
+   * Upper bound when the line gives a range, null otherwise.
+   *
+   * Written in the shape every source of recipes publishes it in, so a caller
+   * merging two of them compares the same field on both.
+   */
+  amount_max: number | null;
   /** The unit `amount` is in, which may differ from the one the recipe used. */
   unit: string | null;
   scaling: ScalingKind;
@@ -124,6 +129,15 @@ const SMALLEST_USABLE: Record<Divisibility, number> = {
 const BULLET = /^\s*[>\-–—•*]+\s+/;
 
 const withoutBullet = (line: string): string => line.replace(BULLET, "").trim();
+
+/**
+ * The count past which a half stops being worth writing.
+ *
+ * Ten is where a recipe stops naming things one by one: below it a cook reads
+ * "2 1/2 gousses" and measures it out, above it the half is noise beside the
+ * number it hangs on.
+ */
+const HALF_STAYS_BELOW = 10;
 
 /** True when a number is a whole or a half, to the last bit of precision. */
 function isHalfStep(value: number): boolean {
@@ -316,7 +330,16 @@ function roundCountable(
 
   const floor = SMALLEST_USABLE[divisibility];
 
-  if (divisibility !== "whole" && value >= floor && isHalfStep(value)) {
+  // A half is a quantity a cook takes out of a small count: two and a half
+  // cloves of garlic is how a kitchen says it. Past a handful the half stops
+  // meaning anything against the count beside it, and four hundred and
+  // thirty-seven and a half apples is a figure nobody weighs against a basket.
+  if (
+    divisibility !== "whole" &&
+    value >= floor &&
+    value <= HALF_STAYS_BELOW &&
+    isHalfStep(value)
+  ) {
     return { value: trim(value), clamped: false };
   }
 
@@ -546,7 +569,12 @@ function scaleMeasure(
     const bounds = eachEnd(({ published, raw }) => {
       const ceiling = factor < 1 ? published : Number.POSITIVE_INFINITY;
       const rounded = roundCountable(raw, "whole", ceiling);
-      return { amount: Math.min(rounded.value, ceiling), exact: raw, clamped: false, raw };
+      return {
+        amount: Math.min(rounded.value, ceiling),
+        exact: raw,
+        clamped: rounded.clamped,
+        raw,
+      };
     });
     return { bounds, unit };
   }
@@ -1128,7 +1156,7 @@ function scaleSingleLine(line: string, options: ScaleOptions): ScaledIngredient 
       original: parsed.original,
       text: parsed.original,
       amount: null,
-      amountMax: null,
+      amount_max: null,
       unit: null,
       scaling: "unscaled",
       adjusted: false,
@@ -1190,7 +1218,7 @@ function scaleSingleLine(line: string, options: ScaleOptions): ScaledIngredient 
     original: parsed.original,
     text: `${parsed.approximation ?? ""}${amountText}${unitLabel}${altLabel}${itemLabel}`.trim(),
     amount: low.amount,
-    amountMax: collapsed ? null : (high?.amount ?? null),
+    amount_max: collapsed ? null : (high?.amount ?? null),
     unit: unit?.canonical ?? null,
     scaling: adjusted || restated || clamped ? "rounded" : "scaled",
     adjusted,
@@ -1305,7 +1333,7 @@ export function passthroughIngredient(line: string): ScaledIngredient {
     original: parsed.original,
     text: parsed.original,
     amount: held ? null : parsed.amount,
-    amountMax: held ? null : parsed.amountMax,
+    amount_max: held ? null : parsed.amountMax,
     unit: held ? null : (parsed.unit?.canonical ?? null),
     scaling: held ? "unscaled" : "scaled",
     adjusted: false,
@@ -1316,6 +1344,19 @@ export function passthroughIngredient(line: string): ScaledIngredient {
     result.note = "No quantity given; adjust to taste.";
   } else if (parsed.unit?.kind === "vague") {
     result.note = withApproximateNote(parsed.unit, undefined);
+  }
+
+  // A line that wrote its amount as a word says which word it was, here as in
+  // every other answer: a figure the page does not print is one this server
+  // read, and a caller has to be able to see that it did.
+  if (parsed.articleWord) {
+    // An article names a word only where it also gave an amount, so the
+    // fallback below narrows the type and no state reaches it.
+    /* v8 ignore start */
+    const stood = (parsed.amount ?? 0) / (parsed.countMultiplier ?? 1);
+    /* v8 ignore stop */
+    const read = `"${parsed.articleWord}" read as ${formatAmount(stood)}.`;
+    result.note = result.note ? `${read} ${result.note}` : read;
   }
   return result;
 }

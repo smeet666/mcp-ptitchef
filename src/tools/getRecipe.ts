@@ -18,7 +18,7 @@ import { formatMinutes } from "../recipe/duration.js";
 import type { ScaledIngredient } from "../recipe/scale.js";
 import { isApproximateMeasure, passthroughIngredients, scaleIngredients } from "../recipe/scale.js";
 import type { Recipe } from "../types.js";
-import { strictInput } from "./arguments.js";
+import { refusalMessage, strictInput } from "./arguments.js";
 import { ok, scaledIngredientSchema, SOURCE_NAME, type ToolResult } from "./shared.js";
 
 export const getRecipeDescription =
@@ -82,11 +82,30 @@ export const getRecipeOutputShape = {
     original_count: z.number().nullable().describe("Servings the page states."),
     original_text: z.string().nullable().describe("The page's own wording for them."),
     requested: z.number().int().nullable().describe("Servings that were asked for."),
-    unit: z.string().nullable(),
-    factor: z.number().nullable().describe("What the ingredients were multiplied by."),
+    unit: z
+      .string()
+      .nullable()
+      .describe(
+        "What the page counts its servings in, in its own wording: 'personnes' on one recipe and " +
+          "'pièces' on another. Null where it states a bare number, and 'servings' then means " +
+          "whatever that number counts.",
+      ),
+    factor: z
+      .number()
+      .nullable()
+      .describe(
+        "What the ingredients were multiplied by. Null where none was applied: no servings were " +
+          "asked for, or the page states none to divide by.",
+      ),
   }),
   ingredients: z.array(scaledIngredientSchema),
-  steps: z.array(
+  steps: z
+    .array(z.string())
+    .describe(
+      "The method, one line per step, in the shape every source of recipes publishes it in. " +
+        "'illustrated_steps' carries the same lines beside the photograph the site took of each.",
+    ),
+  illustrated_steps: z.array(
     z.object({
       text: z.string(),
       image_url: z.string().nullable().describe("The photograph the site took of this step."),
@@ -113,8 +132,13 @@ export const getRecipeOutputShape = {
   faq: z.array(z.object({ question: z.string(), answer: z.string() })),
   translations: z.array(z.object({ language: z.string(), url: z.string() })),
   attribution: z.string(),
-  source: z.string(),
-  notes: z.array(z.string()),
+  source: z.string().describe("The site this recipe was read from. Credit it when showing it."),
+  notes: z
+    .array(z.string())
+    .describe(
+      "What qualifies this answer: what the arithmetic did, what it could not do, and what the " +
+        "site states rather than this server. Read these before quoting a quantity or a cost.",
+    ),
 } as const;
 
 /** The note a scaling that could not go lower leaves on an ingredient. */
@@ -123,14 +147,20 @@ const CLAMPED_UP = /clamped up/i;
 const ONE_BLOCK_NOTE =
   "The site published this method as one block of prose rather than as numbered steps, so the single step above is that block.";
 
+const NO_INGREDIENTS_NOTE =
+  "The page lists no ingredient, so there was nothing to rescale. A recipe the site publishes carries its ingredients, and this one came back without them.";
+
 const NO_YIELD_NOTE =
   "The page states no number of servings, so the ingredients could not be rescaled and come back as published.";
 
 const AS_PUBLISHED_NOTE =
   "No servings were asked for, so the ingredients are the lines as published and 'scaling' describes no arithmetic. Pass 'servings' to rescale them.";
 
-const COST_NOTE =
-  "The estimated cost is the site's own figure, repeated as published. Readers of the site dispute it as too low.";
+/** Said with the servings it was published for, which is what the page carries. */
+const costNote = (recipe: Recipe): string =>
+  recipe.yield_text === null
+    ? "The estimated cost is the site's own figure, repeated as published rather than recomputed."
+    : `The estimated cost is the site's own figure for ${recipe.yield_text} ${recipe.yield_unit ?? "servings"}, repeated as published. It is not recomputed when the ingredients are rescaled.`;
 
 /** What the ingredients were multiplied by, and why it may be nothing. */
 interface Rescaling {
@@ -151,6 +181,12 @@ function rescale(recipe: Recipe, servings: number | undefined): Rescaling {
       ingredients: passthroughIngredients(recipe.ingredients),
       notes: [NO_YIELD_NOTE],
     };
+  }
+
+  if (recipe.ingredients.length === 0) {
+    // Announcing a factor over an empty list would state a conversion that
+    // happened to nothing.
+    return { factor: null, ingredients: [], notes: [NO_INGREDIENTS_NOTE] };
   }
 
   const factor = servings / recipe.yield_count;
@@ -218,7 +254,7 @@ function render(
   const heading = [
     recipe.category,
     recipe.difficulty,
-    recipe.yield_text === null ? null : `${recipe.yield_text} servings`,
+    recipe.yield_text === null ? null : `${recipe.yield_text} ${recipe.yield_unit ?? "servings"}`,
     times.length === 0 ? null : times.join(", "),
     recipe.estimated_cost === null ? null : `about ${recipe.estimated_cost}`,
   ].filter((entry) => entry !== null);
@@ -239,10 +275,7 @@ export async function runGetRecipe(
 ): Promise<ToolResult> {
   const parsed = getRecipeArgs.safeParse(args);
   if (!parsed.success) {
-    throw new PtitchefError(
-      "invalid_input",
-      parsed.error.issues.map((issue) => issue.message).join(" "),
-    );
+    throw new PtitchefError("invalid_input", refusalMessage(parsed.error.issues));
   }
 
   const read = await client.getRecipe(parsed.data.id);
@@ -254,7 +287,7 @@ export async function runGetRecipe(
     ...yieldNotes,
     ...scalingNotes(ingredients, factor),
     ...(recipe.steps_are_one_block ? [ONE_BLOCK_NOTE] : []),
-    ...(recipe.estimated_cost === null ? [] : [COST_NOTE]),
+    ...(recipe.estimated_cost === null ? [] : [costNote(recipe)]),
   ];
 
   return ok(
@@ -278,13 +311,15 @@ export async function runGetRecipe(
         original_count: recipe.yield_count,
         original_text: recipe.yield_text,
         requested: parsed.data.servings ?? null,
-        // The site states a bare number and offers it as a number of parts,
-        // which is the only wording it gives them.
-        unit: recipe.yield_count === null ? null : "parts",
+        // The site's own wording. It writes "6 personnes" on one recipe and
+        // "15 pièces" on another, and a recipe yielding pieces cannot be
+        // described as serving people.
+        unit: recipe.yield_unit,
         factor: factor === null ? null : Number(factor.toPrecision(3)),
       },
       ingredients,
-      steps: recipe.steps,
+      steps: recipe.steps.map((step) => step.text),
+      illustrated_steps: recipe.steps,
       steps_are_one_block: recipe.steps_are_one_block,
       prep_minutes: recipe.prep_minutes,
       cook_minutes: recipe.cook_minutes,

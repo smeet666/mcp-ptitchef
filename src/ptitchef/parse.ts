@@ -17,6 +17,7 @@ import type {
   ListingReport,
   RecipeRow,
 } from "../types.js";
+import { textOf } from "./text.js";
 import { absolute, isFamilyHref, recipeIdFrom, slugFromHref } from "./urls.js";
 
 /** The container the tree lives in, and the boundary of the page's own body. */
@@ -36,45 +37,6 @@ const SAMPLE_ITEM = /<li[^>]*>/;
 /** The heading the page gives the level it serves. */
 const HEADING = /<h1[^>]*>([\s\S]*?)<\/h1>/;
 
-const TAG = /<[^>]*>/g;
-const WHITESPACE = /\s+/g;
-const NAMED_ENTITY = /&(amp|lt|gt|quot|apos|nbsp|#\d+|#x[0-9a-fA-F]+);/g;
-
-const NAMED: Readonly<Record<string, string>> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-  nbsp: " ",
-};
-
-/** Resolve the entities the site writes, so a title reads as it was published. */
-function decode(value: string): string {
-  return value.replace(NAMED_ENTITY, (whole, name: string) => {
-    const named = NAMED[name];
-    if (named !== undefined) {
-      return named;
-    }
-    const code = name.startsWith("#x")
-      ? Number.parseInt(name.slice(2), 16)
-      : Number.parseInt(name.slice(1), 10);
-    // Past the last code point Unicode defines there is no character to write,
-    // so the entity stays as the site published it.
-    return code > 0x10ffff ? whole : String.fromCodePoint(code);
-  });
-}
-
-/**
- * The words inside a fragment of markup.
- *
- * Tags go before entities are resolved, so a title carrying `&lt;` cannot turn
- * into markup this then strips.
- */
-function textOf(markup: string): string {
-  return decode(markup.replace(TAG, " ")).replace(WHITESPACE, " ").trim();
-}
-
 /**
  * The category a fragment links to, or nothing when it links elsewhere.
  *
@@ -90,10 +52,11 @@ function linkIn(markup: string): CategoryLink | null {
     return null;
   }
   const slug = slugFromHref(href);
-  if (slug === null) {
+  const url = absolute(href);
+  if (slug === null || url === null) {
     return null;
   }
-  return { slug, title: textOf(label), url: absolute(href) };
+  return { slug, title: textOf(label), url };
 }
 
 /** The entries the site shows beside a family, as the excerpt it marks them to be. */
@@ -221,6 +184,8 @@ const NEXT_PAGE = /href="[^"]*-page-\d+"/;
  */
 const GUIDE = /<div[^>]*class="[^"]*\bsilo-sections\b[^"]*"[^>]*>/;
 const GUIDE_ROW = /<div[^>]*class="[^"]*\bitem\b[^"]*"[^>]*>/;
+/** Where a guide stops. Past it lie the page's own footer and its sidebars. */
+const GUIDE_END = "</main>";
 const GUIDE_TITLE = /<a[^>]+href="([^"]*)"[^>]*class="[^"]*\bi-title\b[^"]*"[^>]*>([\s\S]*?)<\/a>/;
 const GUIDE_IMAGE = /<img[^>]*\ssrc="([^"]*)"/;
 /** How many readers rated a row, which the guide states as a number. */
@@ -229,7 +194,6 @@ const GUIDE_VOTES = /title="[^"]*?(\d+)\s*votes"/;
 /** How a row states a duration: whole hours, whole minutes, or both. */
 const HOURS = /(\d+)\s*h/i;
 const MINUTES = /(?:\d+\s*h\s*)?(\d+)\s*(?:m|min)\b/i;
-const FIRST_NUMBER = /(\d+(?:[.,]\d+)?)/;
 
 /** The wording a row opens each of its properties with. */
 const PROPERTY_LABELS = {
@@ -255,12 +219,6 @@ export function readMinutes(text: string): number | null {
   return Number(hours ?? 0) * 60 + Number(minutes ?? 0);
 }
 
-/** The first number a fragment states, or nothing when it states none. */
-function readNumber(text: string): number | null {
-  const found = FIRST_NUMBER.exec(text)?.[1];
-  return found === undefined ? null : Number(found.replace(",", "."));
-}
-
 /**
  * Digits the site printed, with the spaces it groups thousands by removed.
  *
@@ -280,7 +238,9 @@ function propertiesOf(markup: string): Map<string, string> {
     const title = found[1] ?? "";
     const at = title.indexOf(":");
     if (at > 0) {
-      stated.set(title.slice(0, at + 1), title.slice(at + 1).trim());
+      // Read through the same cleaner as a body: an attribute carries newlines
+      // and entities as readily, and neither belongs in a line this server writes.
+      stated.set(title.slice(0, at + 1), textOf(title.slice(at + 1)));
     }
   }
   return stated;
@@ -310,6 +270,11 @@ function rowIn(markup: string, ratings: Map<string, RatingByRow>): RecipeRow | s
     return `"${textOf(heading)}" carries no recipe address, so there is nothing to pass back for it`;
   }
 
+  const url = absolute(href);
+  if (url === null) {
+    return `"${textOf(heading)}" links away from this site, so it is no page of it to hand back`;
+  }
+
   const stated = propertiesOf(markup);
   const time = stated.get(PROPERTY_LABELS.totalTime);
   const calories = stated.get(PROPERTY_LABELS.calories);
@@ -320,13 +285,15 @@ function rowIn(markup: string, ratings: Map<string, RatingByRow>): RecipeRow | s
   return {
     id,
     title: textOf(heading),
-    url: absolute(href),
+    url,
     image_url: image === undefined || image === "" ? null : absolute(image),
     ...rated,
     category: stated.get(PROPERTY_LABELS.category) ?? null,
     difficulty: stated.get(PROPERTY_LABELS.difficulty) ?? null,
     total_minutes: time === undefined ? null : readMinutes(time),
-    calories: calories === undefined ? null : readNumber(calories),
+    // Kept as the row writes it, unit and scope included. Reading a bare number
+    // out of "295 kcal / 1 part" would make this server the one claiming both.
+    calories: calories === undefined ? null : calories,
     ingredients_preview: preview === undefined ? null : textOf(preview) || null,
   };
 }
@@ -415,6 +382,13 @@ function guideRowIn(markup: string): RecipeRow | string {
     return "a row of the guide carries no recipe address, so there is nothing to pass back for it";
   }
 
+  const url = absolute(href);
+  /* v8 ignore next 2 -- The address matched the site's own recipe shape above,
+     so resolving it against the site's origin cannot leave it. */
+  if (url === null) {
+    return "a row of the guide links away from this site";
+  }
+
   const image = GUIDE_IMAGE.exec(markup)?.[1];
   const votes = GUIDE_VOTES.exec(markup)?.[1];
 
@@ -423,7 +397,7 @@ function guideRowIn(markup: string): RecipeRow | string {
     /* v8 ignore next -- The address was read out of this very match, so the
        words beside it came with it; the fallback narrows the type. */
     title: textOf(heading?.[2] ?? ""),
-    url: absolute(href),
+    url,
     image_url: image === undefined || image === "" ? null : absolute(image),
     rating: null,
     rating_count: votes === undefined ? null : Number(votes),
@@ -442,6 +416,8 @@ interface ReadRows {
   skipped: string[];
   /** Rows the page held, before any were set aside or folded together. */
   seen: number;
+  /** Rows naming a recipe already held, which a guide does under two headings. */
+  folded: number;
 }
 
 /** The rows of a listing, read from where its section opens. */
@@ -466,7 +442,7 @@ function readListingRows(html: string, from: number): ReadRows {
       results.push(row);
     }
   }
-  return { results, skipped, seen };
+  return { results, skipped, seen, folded: 0 };
 }
 
 /**
@@ -479,27 +455,34 @@ function readGuideRows(html: string, guide: RegExpExecArray | null): ReadRows {
   const results: RecipeRow[] = [];
   const skipped: string[] = [];
   let seen = 0;
+  let folded = 0;
   if (guide === null) {
-    return { results, skipped, seen };
+    return { results, skipped, seen, folded };
   }
 
   const held = new Set<string>();
+  // Bounded at the end of the page's body, like every other reader here. Read
+  // past it, a footer's own items would be published as rows of the guide.
+  const stop = html.indexOf(GUIDE_END, guide.index);
+  const region = html.slice(guide.index + guide[0].length, stop === -1 ? undefined : stop);
+
   // The first piece is whatever sits between the guide and its first row.
-  for (const chunk of html
-    .slice(guide.index + guide[0].length)
-    .split(GUIDE_ROW)
-    .slice(1)) {
+  for (const chunk of region.split(GUIDE_ROW).slice(1)) {
     const row = guideRowIn(chunk);
+    // Every row the page served is counted, a repeat included: `seen` states
+    // what the page held, and folding one away here would have it state what
+    // this rendered instead.
+    seen += 1;
     if (typeof row === "string") {
-      seen += 1;
       skipped.push(row);
-    } else if (!held.has(row.id)) {
+    } else if (held.has(row.id)) {
+      folded += 1;
+    } else {
       held.add(row.id);
-      seen += 1;
       results.push(row);
     }
   }
-  return { results, skipped, seen };
+  return { results, skipped, seen, folded };
 }
 
 export interface ParsedListingPage {
@@ -531,10 +514,17 @@ export function parseListingPage(html: string, context: ListingContext): ParsedL
 
   const section = LISTING.exec(html);
   const guide = section === null ? GUIDE.exec(html) : null;
-  if (section === null && guide === null && stated === null) {
-    throw parseFailure("Ptitchef served a page that carries neither a listing nor a count.", {
-      url: context.url,
-    });
+  // A page holding neither a listing nor a guide has served no row. Saying so is
+  // only true where the site also states that it holds none: a page counting
+  // three thousand recipes and showing no listing is one this could not read,
+  // and rendering it as an absence would report a failure as an answer.
+  if (section === null && guide === null && stated !== 0) {
+    throw parseFailure(
+      stated === null
+        ? "Ptitchef served a page that carries neither a listing nor a count."
+        : `Ptitchef served a page stating ${stated} recipes and no listing this server can read.`,
+      { url: context.url },
+    );
   }
 
   const headingText = textOf(LISTING_HEADING.exec(html)?.[1] ?? "");
@@ -543,7 +533,7 @@ export function parseListingPage(html: string, context: ListingContext): ParsedL
     section === null
       ? readGuideRows(html, guide)
       : readListingRows(html, section.index + section[0].length);
-  const { results, skipped, seen } = read;
+  const { results, skipped, seen, folded } = read;
 
   return {
     report: {
@@ -556,6 +546,7 @@ export function parseListingPage(html: string, context: ListingContext): ParsedL
       results,
       result_count: results.length,
       rows_seen: seen,
+      folded,
       total_available: stated,
       page: context.page,
       // The site offers a further page by linking one. A listing it serves whole

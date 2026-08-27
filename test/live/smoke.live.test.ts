@@ -232,6 +232,24 @@ describe.skipIf(!process.env.PTC_LIVE)("Ptitchef listings, live", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("answers a search of one character with the page the site falls back to", async () => {
+    // The site serves its recipes home page for words it makes nothing of. If
+    // it started searching them, this would come back as a listing instead.
+    const report = structuredOf<ListingShape>(await runSearchRecipes(client, { query: "a" }));
+
+    expect(report.kind, "the site started searching a single character").toBe("unmatched");
+    expect(report.total_available, "the fallback page started stating a count").toBeNull();
+  });
+
+  it("answers a search precise enough to name a recipe with that recipe", async () => {
+    const report = structuredOf<ListingShape>(
+      await runSearchRecipes(client, { query: "poulet courgette rapide" }),
+    );
+
+    expect(report.kind, "the site stopped opening a recipe for a precise search").toBe("recipe");
+    expect(report.result_count).toBe(1);
+  });
+
   it("gives every row an identifier that leads back to its page", async () => {
     const report = structuredOf<ListingShape>(
       await runSearchRecipes(client, { query: "tarte aux pommes", limit: 5 }),

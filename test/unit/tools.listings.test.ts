@@ -180,7 +180,7 @@ describe("search_recipes", () => {
         clientServing(fixture("listing-whole")),
         args({ query: "x", sort: "rating" }),
       ),
-    ).rejects.toThrow(/^\[invalid_input]/);
+    ).rejects.toMatchObject({ code: "invalid_input" });
   });
 
   it("stays within the text ceiling, credit and notes included", async () => {
@@ -245,7 +245,7 @@ describe("browse_recipes", () => {
   it("refuses a call naming neither a category nor a listing", async () => {
     await expect(
       runBrowseRecipes(clientServing(fixture("listing-first")), args({})),
-    ).rejects.toThrow(/^\[invalid_input]/);
+    ).rejects.toMatchObject({ code: "invalid_input" });
   });
 
   it("refuses a call naming both, since it asks two questions", async () => {
@@ -254,13 +254,13 @@ describe("browse_recipes", () => {
         clientServing(fixture("listing-first")),
         args({ category: "brindilles", listing: "latest" }),
       ),
-    ).rejects.toThrow(/not both/);
+    ).rejects.toThrow(/asks two questions/);
   });
 
   it("refuses a standing list it does not keep", async () => {
     await expect(
       runBrowseRecipes(clientServing(fixture("listing-first")), args({ listing: "quickest" })),
-    ).rejects.toThrow(/^\[invalid_input]/);
+    ).rejects.toMatchObject({ code: "invalid_input" });
   });
 });
 
@@ -313,7 +313,7 @@ describe("search_by_ingredients", () => {
         clientServing(fixture("listing-whole")),
         args({ ingredients: ["a", "b", "c", "d", "e", "f"] }),
       ),
-    ).rejects.toThrow(/^\[invalid_input]/);
+    ).rejects.toMatchObject({ code: "invalid_input" });
   });
 
   it("refuses an argument it does not declare", async () => {
@@ -322,7 +322,7 @@ describe("search_by_ingredients", () => {
         clientServing(fixture("listing-whole")),
         args({ ingredients: ["poulet"], exclude: ["citron"] }),
       ),
-    ).rejects.toThrow(/^\[invalid_input]/);
+    ).rejects.toMatchObject({ code: "invalid_input" });
   });
 });
 

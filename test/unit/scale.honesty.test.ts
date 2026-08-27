@@ -42,7 +42,7 @@ describe("ranges", () => {
     const result = scale("2 à 3 gousses d'ail", 2);
 
     expect(result.amount).toBe(4);
-    expect(result.amountMax).toBe(6);
+    expect(result.amount_max).toBe(6);
   });
 });
 

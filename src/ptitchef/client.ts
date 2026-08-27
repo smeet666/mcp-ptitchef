@@ -17,12 +17,14 @@ import { RateLimiter } from "./rateLimiter.js";
 import {
   categoryUrl,
   fridgeUrl,
+  isCategoryRoot,
   isFamilyHref,
   isRecipeId,
   isSlug,
   listingAt,
   listingUrl,
   MAX_FRIDGE_INGREDIENTS,
+  recipeIdFrom,
   recipeNumberOf,
   recipeUrl,
   searchUrl,
@@ -162,16 +164,22 @@ export class PtitchefClient {
     }
 
     const url = searchUrl(asked);
-    return await this.readListing(url, (servedUrl) => {
-      const at = listingAt(servedUrl);
-      return {
-        asked,
-        kind: at === null ? "free_text" : "topic",
-        topicSlug: at?.slug ?? null,
-        page: at?.page ?? 1,
-        url: servedUrl,
-      };
-    });
+    const stored = this.listings.get(url);
+    if (stored) {
+      this.logger.debug(`served from the store: ${url}`);
+      return withSkipped({ data: stored.report, cached: true }, stored.skipped);
+    }
+
+    const page = await this.limiter.schedule(() => fetchPage(this.request(url)));
+
+    // The site answers a search in five ways, and the address it answers from
+    // is what tells them apart. Two of them carry no listing at all: it opens a
+    // recipe where the words name one, and falls back to its recipes home page
+    // where it can make nothing of them. Reading either as an unreadable page
+    // would report the site's own answer as a failure.
+    const answered = searchAnswer(asked, page.body, page.url);
+    this.listings.set(url, answered);
+    return withSkipped({ data: answered.report, cached: false }, answered.skipped);
   }
 
   /**
@@ -191,9 +199,11 @@ export class PtitchefClient {
         asked: target.asked,
         kind: target.kind,
         topicSlug: at?.slug ?? null,
-        // A standing list is served from an address carrying no page number, so
-        // there is nothing to read back and the number asked for stands.
-        page: at?.page ?? page,
+        // A standing list is served from an address carrying no page number,
+        // and the site serves the same page whatever number is asked for.
+        // Repeating the number asked for would say a page was read that never
+        // was.
+        page: at?.page ?? 1,
         url: servedUrl,
       };
     });
@@ -366,4 +376,88 @@ function servedLevel(servedUrl: string, asked: string | null): ServedLevel {
  */
 function withSkipped<T>(read: Read<T>, skipped: string[]): Read<T> {
   return skipped.length > 0 ? { ...read, skipped } : read;
+}
+
+/** What a search came back as, read from the address it came back from. */
+function searchAnswer(asked: string, body: string, servedUrl: string): StoredListing {
+  const asRecipe = recipeIdFrom(servedUrl);
+  if (asRecipe !== null) {
+    return { report: oneRecipeListing(asked, parseRecipePage(body, servedUrl)), skipped: [] };
+  }
+  if (isCategoryRoot(servedUrl)) {
+    return { report: unmatchedListing(asked, servedUrl), skipped: [] };
+  }
+
+  const at = listingAt(servedUrl);
+  return parseListingPage(body, {
+    asked,
+    kind: at === null ? "free_text" : "topic",
+    topicSlug: at?.slug ?? null,
+    page: at?.page ?? 1,
+    url: servedUrl,
+  });
+}
+
+/**
+ * The one recipe the site opened in place of a listing.
+ *
+ * It judges some searches precise enough to name a recipe and serves that page.
+ * Rendering it as a listing of one says what the site answered; the row carries
+ * only what a recipe page states about itself, since there is no listing row to
+ * read the rest from.
+ */
+function oneRecipeListing(asked: string, recipe: Recipe): ListingReport {
+  return {
+    asked,
+    kind: "recipe",
+    topic_slug: null,
+    title: recipe.title,
+    results: [
+      {
+        id: recipe.id,
+        title: recipe.title,
+        url: recipe.url,
+        image_url: recipe.image_url,
+        rating: recipe.rating,
+        rating_count: recipe.rating_count,
+        review_count: recipe.review_count,
+        category: recipe.category,
+        difficulty: recipe.difficulty,
+        total_minutes: recipe.total_minutes,
+        calories: recipe.nutrition?.calories ?? null,
+        ingredients_preview: null,
+      },
+    ],
+    result_count: 1,
+    rows_seen: 1,
+    folded: 0,
+    total_available: 1,
+    page: 1,
+    single_page: true,
+    url: recipe.url,
+  };
+}
+
+/**
+ * The recipes home page, which the site serves for words it made nothing of.
+ *
+ * It lists no result for them and states no count, so the answer carries no
+ * total: a zero here would say the site searched and found none, where it never
+ * searched at all.
+ */
+function unmatchedListing(asked: string, url: string): ListingReport {
+  return {
+    asked,
+    kind: "unmatched",
+    topic_slug: null,
+    title: null,
+    results: [],
+    result_count: 0,
+    rows_seen: 0,
+    folded: 0,
+    total_available: null,
+    page: 1,
+    single_page: true,
+    url,
+  };
 }

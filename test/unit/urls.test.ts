@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  absolute,
   categoryUrl,
   fridgeUrl,
   isFamilyHref,
@@ -177,5 +178,39 @@ describe("the number a recipe's address ends on", () => {
   it("is nothing for an address ending on no number", () => {
     expect(recipeNumberOf("recettes/brindilles")).toBeNull();
     expect(recipeNumberOf("https://www.ptitchef.com/recettes")).toBeNull();
+  });
+});
+
+describe("absolute", () => {
+  it("resolves a link the site printed relative to itself", () => {
+    expect(absolute("/imgupl/a.webp")).toBe("https://www.ptitchef.com/imgupl/a.webp");
+  });
+
+  it.each([
+    "//ailleurs.invalid/x",
+    "https://ailleurs.invalid/x",
+    "javascript:alert(1)",
+    "mailto:x@y.invalid",
+  ])("gives nothing for %s, which leads off this site", (href) => {
+    // A field labelled as the site's own page must not carry an address that
+    // takes a reader somewhere else.
+    expect(absolute(href)).toBeNull();
+  });
+
+  it("gives nothing for a link that is no address at all", () => {
+    expect(absolute("http://[")).toBeNull();
+  });
+});
+
+describe("an identifier walking up out of its path", () => {
+  it("is refused, since the site writes no such segment", () => {
+    // Read as a path, it lands outside the recipes and on addresses the site
+    // asks not to be read.
+    expect(isRecipeId("recettes/../annuaire-fid-1")).toBe(false);
+    expect(isRecipeId("recettes/./plat/x-fid-1")).toBe(false);
+  });
+
+  it("is nothing to read a recipe out of either", () => {
+    expect(recipeIdFrom("http://[")).toBeNull();
   });
 });

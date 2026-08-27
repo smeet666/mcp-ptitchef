@@ -11,7 +11,7 @@ import { z } from "zod";
 import { PtitchefError } from "../errors.js";
 import type { PtitchefClient } from "../ptitchef/client.js";
 import { MAX_FRIDGE_INGREDIENTS } from "../ptitchef/urls.js";
-import { strictInput } from "./arguments.js";
+import { refusalMessage, strictInput } from "./arguments.js";
 import {
   DEFAULT_LIMIT,
   limitRows,
@@ -56,10 +56,7 @@ export async function runSearchByIngredients(
 ): Promise<ToolResult> {
   const parsed = searchByIngredientsArgs.safeParse(args);
   if (!parsed.success) {
-    throw new PtitchefError(
-      "invalid_input",
-      parsed.error.issues.map((issue) => issue.message).join(" "),
-    );
+    throw new PtitchefError("invalid_input", refusalMessage(parsed.error.issues));
   }
 
   const read = await client.searchByIngredients(parsed.data.ingredients);

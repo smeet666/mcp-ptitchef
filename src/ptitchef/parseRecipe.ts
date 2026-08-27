@@ -17,7 +17,8 @@ import type {
   RecipeStep,
   RecipeTranslation,
 } from "../types.js";
-import { absolute, recipeIdFrom } from "./urls.js";
+import { textOf } from "./text.js";
+import { absolute, recipeIdFrom, recipeNumberOf } from "./urls.js";
 
 const LD_BLOCK = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
 /** The wording the page prints the difficulty behind. */
@@ -190,18 +191,34 @@ function readFaq(payload: unknown): RecipeQuestion[] {
 
 /** The same recipe on the other sites of the network that publishes it. */
 function readTranslations(html: string, self: string): RecipeTranslation[] {
+  const here = recipeNumberOf(self);
   const found: RecipeTranslation[] = [];
+
   for (const link of html.matchAll(ALTERNATE)) {
     const tag = link[0];
-    const language = HREFLANG.exec(tag)?.[1];
-    const url = HREF.exec(tag)?.[1];
-    // The page names itself among them, and "x-default" names one of the
-    // others a second time; neither is another language to offer.
+    const language = textOf(HREFLANG.exec(tag)?.[1] ?? "");
+    const href = HREF.exec(tag)?.[1];
+    if (language === "" || href === undefined) {
+      continue;
+    }
+
+    // Resolved rather than repeated: a counterpart written relative to the page
+    // would otherwise be published as an address nobody can open.
+    let url: string;
+    try {
+      url = new URL(href, self).toString();
+    } catch {
+      continue;
+    }
+
+    // The page names itself among them, and "x-default" names one of the others
+    // a second time; neither is another language to offer. The page is
+    // recognised by the number its address ends on rather than by the address
+    // matching character for character, because the site rewrites the words of
+    // an address around that number.
     if (
-      language === undefined ||
-      url === undefined ||
       language === "x-default" ||
-      url === self ||
+      (here !== null && recipeNumberOf(url) === here) ||
       found.some((other) => other.language === language)
     ) {
       continue;
@@ -267,7 +284,9 @@ export function parseRecipePage(html: string, url: string): Recipe {
     image_url: ldImage(recipe.image),
     category: ldText(recipe.recipeCategory),
     cuisine: ldText(recipe.recipeCuisine),
-    difficulty: DIFFICULTY.exec(html)?.[1]?.trim() || null,
+    // Read through the same cleaner as every other piece of the page: an
+    // attribute carries newlines and entities as readily as a body does.
+    difficulty: textOf(DIFFICULTY.exec(html)?.[1] ?? "") || null,
     author: ldText(author.name),
     author_url: ldText(author.url),
     published: ldText(recipe.datePublished),
@@ -282,6 +301,7 @@ export function parseRecipePage(html: string, url: string): Recipe {
     // rescale by, so the second is read only where the first is silent.
     yield_count: published.count ?? readServings(html),
     yield_text: published.text === "" ? null : published.text,
+    yield_unit: published.unit,
     ingredients: readIngredients(recipe.recipeIngredient),
     steps,
     steps_are_one_block: oneBlock,

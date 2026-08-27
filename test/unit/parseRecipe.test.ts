@@ -272,3 +272,33 @@ describe("a payload naming no image at all", () => {
     expect(parseRecipePage(read("recipe-no-image.html"), PAGE).image_url).toBeNull();
   });
 });
+
+describe("counterparts named oddly", () => {
+  const recipe = parseRecipePage(read("recipe-odd-alternates.html"), PAGE);
+
+  it("leaves out the page itself, recognised by the number its address ends on", () => {
+    // The site rewrites the words of an address around that number, so an
+    // entry naming the same recipe under other words is still this page.
+    expect(recipe.translations.some((one) => one.language === "fr")).toBe(false);
+  });
+
+  it("leaves out an entry missing its language or its address", () => {
+    expect(recipe.translations.map((one) => one.language)).toEqual(["it"]);
+  });
+
+  it("leaves out an entry whose address is no address at all", () => {
+    expect(recipe.translations.some((one) => one.language === "pt")).toBe(false);
+  });
+
+  it("resolves a counterpart written relative to the page", () => {
+    expect(recipe.translations[0]?.url).toBe(
+      "https://www.ptitchef.com/ricette/contorno/rametti-fid-103",
+    );
+  });
+});
+
+describe("a recipe listing no ingredient", () => {
+  it("carries an empty list rather than one this filled in", () => {
+    expect(parseRecipePage(read("recipe-no-ingredients.html"), PAGE).ingredients).toEqual([]);
+  });
+});

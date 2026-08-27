@@ -149,8 +149,8 @@ describe("choosing one unit for both ends of a range", () => {
     expect(scale("225-500 g de guanciale", 2).text).toBe("450-1000 g de guanciale");
   });
 
-  it("reports the lower bound in `amount` and the upper one in `amountMax`", () => {
-    expect(scale("200-300 g de guanciale", 2)).toMatchObject({ amount: 400, amountMax: 600 });
+  it("reports the lower bound in `amount` and the upper one in `amount_max`", () => {
+    expect(scale("200-300 g de guanciale", 2)).toMatchObject({ amount: 400, amount_max: 600 });
   });
 });
 
@@ -158,7 +158,7 @@ describe("a range whose ends land on the same amount", () => {
   it("states the one amount rather than a range of it to itself", () => {
     const result = scale("1-2 oeufs", 0.5);
     expect(result.text).toBe("1 oeuf");
-    expect(result.amountMax).toBeNull();
+    expect(result.amount_max).toBeNull();
     expect(result.note).toMatch(/both ends come to the same amount/i);
   });
 });

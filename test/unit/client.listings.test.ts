@@ -194,13 +194,15 @@ describe("PtitchefClient.browseRecipes", () => {
     expect(read.data.page).toBe(1);
   });
 
-  it("keeps the page a standing list was asked for, since it carries no number", async () => {
+  it("reports the one page a standing list has, whatever page was asked for", async () => {
+    // The site serves the same page whatever number is asked for, so repeating
+    // the number would say a page was read that never was.
     const fake = fakeFetch(fixture("listing-whole"));
     const read = await runWithClock(
       clientFor(fake.fetchImpl).browseRecipes({ listing: "latest", page: 3 }),
     );
 
-    expect(read.data.page).toBe(3);
+    expect(read.data.page).toBe(1);
   });
 
   for (const category of ["Brindilles", "cat/legume", "a b", ""]) {
@@ -390,5 +392,85 @@ describe("a topic the site answers with a guide", () => {
     await runWithClock(clientFor(fake.fetchImpl).browseRecipes({ category: "brindilles" }));
 
     expect(onlyCall(fake)).toBe("https://www.ptitchef.com/recettes/brindilles-page-1");
+  });
+});
+
+describe("the two shapes a search comes back as without a listing", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("renders the recipe the site opened in place of a listing", async () => {
+    // The site judges some searches precise enough to name a recipe and serves
+    // that page. Reading it as unreadable would report its answer as a failure.
+    const fake = fakeFetch(
+      fixture("recipe-full"),
+      "https://www.ptitchef.com/recettes/accompagnement/brindilles-au-four-fid-101",
+    );
+    const read = await runWithClock(clientFor(fake.fetchImpl).searchRecipes("brindilles au four"));
+
+    expect(read.data.kind).toBe("recipe");
+    expect(read.data.result_count).toBe(1);
+    expect(read.data.total_available).toBe(1);
+    expect(read.data.results[0]?.title).toBe("Brindilles au four");
+    expect(read.data.results[0]?.id).toBe("recettes/accompagnement/brindilles-au-four-fid-101");
+  });
+
+  it("carries what a recipe page states about itself, and nothing a row would add", async () => {
+    const fake = fakeFetch(
+      fixture("recipe-full"),
+      "https://www.ptitchef.com/recettes/accompagnement/brindilles-au-four-fid-101",
+    );
+    const read = await runWithClock(clientFor(fake.fetchImpl).searchRecipes("brindilles"));
+    const row = read.data.results[0];
+
+    expect(row?.difficulty).toBe("moyen");
+    expect(row?.calories).toBe("295Kcal");
+    // There is no listing row to read a preview from.
+    expect(row?.ingredients_preview).toBeNull();
+  });
+
+  it("carries no calorie figure where the recipe page publishes no nutrition", async () => {
+    const fake = fakeFetch(
+      fixture("recipe-bare"),
+      "https://www.ptitchef.com/recettes/accompagnement/brindilles-nues-fid-102",
+    );
+    const read = await runWithClock(clientFor(fake.fetchImpl).searchRecipes("brindilles nues"));
+
+    expect(read.data.results[0]?.calories).toBeNull();
+  });
+
+  it("renders the recipes home page as a search the site did not run", async () => {
+    // A zero here would say the site searched and found none, where it never
+    // searched at all.
+    const fake = fakeFetch(fixture("categories-root"), "https://www.ptitchef.com/recettes");
+    const read = await runWithClock(clientFor(fake.fetchImpl).searchRecipes("a"));
+
+    expect(read.data.kind).toBe("unmatched");
+    expect(read.data.results).toEqual([]);
+    expect(read.data.total_available).toBeNull();
+  });
+
+  it("recognises that page with a trailing slash too", async () => {
+    const fake = fakeFetch(fixture("categories-root"), "https://www.ptitchef.com/recettes/");
+    const read = await runWithClock(clientFor(fake.fetchImpl).searchRecipes("a"));
+
+    expect(read.data.kind).toBe("unmatched");
+  });
+
+  it("serves either from the store the second time", async () => {
+    const fake = fakeFetch(fixture("categories-root"), "https://www.ptitchef.com/recettes");
+    const client = clientFor(fake.fetchImpl);
+
+    await runWithClock(client.searchRecipes("a"));
+    const second = await runWithClock(client.searchRecipes("a"));
+
+    expect(fake.calls).toHaveLength(1);
+    expect(second.cached).toBe(true);
   });
 });

@@ -293,10 +293,21 @@ export async function fetchPage(options: FetchOptions): Promise<Page> {
       ]);
 
       if (response.ok) {
-        limiter.succeeded();
         // A response built by hand carries no address of its own, and the one
         // that was asked for is then the one it came from.
-        return { body: await response.text(), url: response.url === "" ? url : response.url };
+        const from = response.url === "" ? url : response.url;
+        // Redirects are followed, so where a page finally came from is where it
+        // has to be checked. Every guard against a substituted page reads a path
+        // and not a host, and a page from elsewhere would pass all of them while
+        // being credited to this site.
+        if (new URL(from).origin !== new URL(url).origin) {
+          await discardBody(response);
+          throw networkError(`Ptitchef redirected this read to ${new URL(from).origin}.`, {
+            url,
+          });
+        }
+        limiter.succeeded();
+        return { body: await response.text(), url: from };
       }
 
       const verdict = await readRefusal(response, url, attempt, maxRetries);

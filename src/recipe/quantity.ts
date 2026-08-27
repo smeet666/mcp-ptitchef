@@ -20,6 +20,8 @@ const DIGIT = /\d/;
 const TRAILING_S = /s$/;
 const HYPHENATED_TAIL = /^-\p{L}/u;
 const LEADING_PARTITIVE = /^(?:de\s+la\s+|de\s+l'|d'|de\s+|du\s+|des\s+)/i;
+/** The partitive a fraction introduces its measure through: "1/4 de litre". */
+const PARTITIVE_BEFORE_MEASURE = /^(?:de\s+l'|d'|de\s+la\s+|de\s+|du\s+)/i;
 const LEADING_ARTICLE = /^(?:une|un)\s+/i;
 const RANGE_SEPARATOR = /^\s*(à|a|ou|-|–|—|\/)\s*/;
 
@@ -568,7 +570,12 @@ export function parseIngredient(line: string): ParsedIngredient {
   const article = range ? null : parseLeadingArticle(stated);
   const quantity = range ?? parseLeadingQuantity(stated) ?? article;
   if (!quantity) {
-    return empty(null);
+    // The site writes the amount behind the name as well as in front of it:
+    // "lardons (200 à 300 g)" states grams as plainly as "200 à 300 g de
+    // lardons" does. Calling such a line quantity-less would report a quantity
+    // the page printed as one it never gave.
+    const behind = readTrailingBracket(stated);
+    return behind ?? empty(null);
   }
 
   // A figure joined to a word by a hyphen describes one thing rather than
@@ -589,9 +596,21 @@ export function parseIngredient(line: string): ParsedIngredient {
   const times = multiplier?.times ?? 1;
 
   const fromArticle = quantity === article;
+  rest = withoutPartitiveBeforeMeasure(rest, quantity.amount, fromArticle);
+
   const measure = readMeasure(rest, fromArticle);
   const { unit, unitText, adjective } = measure;
   rest = measure.rest;
+
+  // French writes the fraction after the measure as readily as before it: "1
+  // pot 1/2 de sucre" and "1 litre 1/2 de lait" both state one and a half.
+  // Reading the whole number alone leaves the fraction in the ingredient's
+  // name, where it is neither multiplied nor removed, and the answer states a
+  // third less than the page did.
+  const trailing = range === null && unit !== null ? parseTrailingFraction(rest) : null;
+  if (trailing) {
+    rest = trailing.rest;
+  }
 
   const bracketed = takeAlternates(rest);
   rest = bracketed.rest;
@@ -618,7 +637,7 @@ export function parseIngredient(line: string): ParsedIngredient {
     heldBack: PER_PERSON.test(text) ? "perPerson" : null,
     approximation: loose ? loose[0] : null,
     measureAdjective: adjective,
-    amount: quantity.amount * times,
+    amount: (quantity.amount + (trailing?.amount ?? 0)) * times,
     amountMax: range === null ? null : range.max * times,
     rangeSeparator: range?.separator ?? null,
     unit,
@@ -838,4 +857,74 @@ export function formatAmount(amount: number, options: FormatAmountOptions = {}):
   }
 
   return decimal(amount);
+}
+
+/**
+ * Drop the partitive a fraction introduces its measure through.
+ *
+ * "1/4 de litre" and "1/2 de bouteille" name a share of the measure that
+ * follows. Left in place, the partitive hides the unit, and the line is read as
+ * a share of a countable thing that a kitchen then cannot take below its floor.
+ */
+function withoutPartitiveBeforeMeasure(text: string, amount: number, fromArticle: boolean): string {
+  if (amount >= 1) {
+    return text;
+  }
+  const partitive = PARTITIVE_BEFORE_MEASURE.exec(text);
+  if (!partitive) {
+    return text;
+  }
+  const behind = text.slice(partitive[0].length);
+  return matchLeadingUnit(behind, fromArticle) ? behind : text;
+}
+
+/**
+ * A fraction written after the measure it belongs to.
+ *
+ * French states one and a half of something by putting the half behind the
+ * measure: "1 pot 1/2", "1 litre 1/2". It is only read where a whole number and
+ * a measure came first, because a fraction opening what is left of the line
+ * belongs to whatever it introduces instead.
+ */
+function parseTrailingFraction(text: string): { amount: number; rest: string } | null {
+  const found = TRAILING_FRACTION.exec(text);
+  if (found?.[1] === undefined || found[2] === undefined) {
+    return null;
+  }
+  const denominator = Number(found[2]);
+  if (denominator === 0) {
+    return null;
+  }
+  return { amount: Number(found[1]) / denominator, rest: text.slice(found[0].length).trimStart() };
+}
+
+const TRAILING_FRACTION = /^\s*(\d+)\s*\/\s*(\d+)(?=\s|$)/;
+
+/**
+ * A measure the line states in brackets behind the name of what it measures.
+ *
+ * Taken only where the whole bracket reads as one measure and nothing precedes
+ * it that could be a quantity: a bracket holding a remark, or one sitting
+ * beside an amount already read, belongs where the page put it.
+ */
+function readTrailingBracket(text: string): ParsedIngredient | null {
+  const open = text.lastIndexOf("(");
+  if (open <= 0 || !text.trimEnd().endsWith(")")) {
+    return null;
+  }
+
+  const inside = text.slice(open + 1, text.lastIndexOf(")")).trim();
+  const name = text.slice(0, open).trim();
+  if (name === "" || inside === "") {
+    return null;
+  }
+
+  const measured = parseIngredient(inside);
+  // Nothing but a quantity and its unit: a bracket naming another ingredient,
+  // as in "(200 g de crevettes)", measures something the line does not count.
+  if (measured.amount === null || measured.unit === null || measured.item !== "") {
+    return null;
+  }
+
+  return { ...measured, original: text, item: name, heldBack: null };
 }

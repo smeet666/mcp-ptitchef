@@ -390,6 +390,49 @@ const listingGuide = `<!doctype html>
 </body></html>
 `;
 
+/**
+ * A listing holding a row that links away from the site.
+ *
+ * The address of such a row is no page of this site, so there is nothing to
+ * hand back for it and nothing to credit the site with.
+ */
+const listingOffSite = `<!doctype html>
+<html lang="fr"><head><title>Brindilles - 2 recettes sur Ptitchef</title>
+${itemList([listingRows[0]])}</head>
+<body>${chrome}
+<main id="page-main">
+  <h1 class="title">Brindilles</h1>
+  <section class="line-list ll-recipes">
+    ${row(101, "accompagnement/brindilles-au-four", "Brindilles au four", listingRows[0], "2 brindilles")}
+    <article class="item"><div class="i-data">
+      <h2 class="i-title"><a href="//ailleurs.invalid/recettes/plat/copie-fid-999">Une copie ailleurs</a></h2>
+    </div></article>
+  </section>
+</main>
+</body></html>
+`;
+
+/** A page stating a count of recipes and carrying no listing this can read. */
+const listingCountedButUnread = `<!doctype html>
+<html lang="fr"><head><title>Brindilles - 3200 recettes sur Ptitchef</title></head>
+<body>${chrome}
+<main id="page-main"><h1 class="title">Brindilles</h1><p>Rien de lisible ici.</p></main>
+</body></html>
+`;
+
+/** A guide the page never closes the body of. */
+const guideWithoutBodyEnd = `<!doctype html>
+<html lang="fr"><head><title>Brindilles : recettes faciles</title></head>
+<body>${chrome}
+<h1 class="title">Brindilles : recettes faciles</h1>
+<div class="silo-sections">
+  <section class="ss-item"><div class="basic-list">
+    ${guideRow(101, "accompagnement/brindilles-au-four", "Brindilles au four", 12)}
+  </div></section>
+</div>
+</body></html>
+`;
+
 /** A page carrying neither a listing nor a count of one. */
 const listingUnreadable = `<!doctype html>
 <html lang="fr"><head><title>Ptitchef</title></head>
@@ -693,6 +736,28 @@ const recipeAllScalable = recipePage(
 /** A recipe the payload names no image for at all. */
 const recipeNoImage = recipePage(recipePayload({ name: "Brindilles sans photo", image: [] }));
 
+/** A recipe whose payload lists no ingredient at all. */
+const recipeNoIngredients = recipePage(
+  recipePayload({ name: "Brindilles sans liste", recipeIngredient: [] }),
+);
+
+/**
+ * A recipe naming counterparts oddly.
+ *
+ * One entry names the page itself under another wording of its address, one
+ * carries a language and no address, one carries an address and no language,
+ * and one is written relative to the page.
+ */
+const recipeOddAlternates = recipePage(recipePayload({ name: "Brindilles traduites" })).replace(
+  alternates,
+  `
+<link rel="alternate" hreflang="fr" href="https://www.ptitchef.com/recettes/accompagnement/les-vraies-brindilles-fid-101">
+<link rel="alternate" hreflang="de">
+<link rel="alternate" href="https://www.petitchef.de/rezepte/x-fid-500">
+<link rel="alternate" hreflang="pt" href="http://[">
+<link rel="alternate" hreflang="it" href="/ricette/contorno/rametti-fid-103">`,
+);
+
 /** A page the site served without any recipe payload on it. */
 const recipeMissing = `<!doctype html>
 <html lang="fr"><head><title>Ptitchef</title>
@@ -717,6 +782,9 @@ const files = {
   "listing-broken-row.html": listingBrokenRow,
   "listing-fridge-cut.html": listingCut,
   "listing-guide.html": listingGuide,
+  "listing-off-site.html": listingOffSite,
+  "listing-counted-unread.html": listingCountedButUnread,
+  "listing-guide-no-body-end.html": guideWithoutBodyEnd,
   "listing-odd.html": listingOdd,
   "listing-one-broken-row.html": listingOneBrokenRow,
   "recipe-full.html": recipeFull,
@@ -730,6 +798,8 @@ const files = {
   "recipe-unnamed.html": recipeUnnamed,
   "recipe-no-image.html": recipeNoImage,
   "recipe-all-scalable.html": recipeAllScalable,
+  "recipe-no-ingredients.html": recipeNoIngredients,
+  "recipe-odd-alternates.html": recipeOddAlternates,
 };
 
 for (const [name, body] of Object.entries(files)) {

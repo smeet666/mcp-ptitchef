@@ -96,6 +96,25 @@ describe("createServer", () => {
     expect(globalFetch).not.toHaveBeenCalled();
   });
 
+  it("registers every tool with a description, an output schema and read-only annotations", async () => {
+    const client = await connected();
+    const { tools } = await client.listTools();
+
+    expect(tools.length).toBeGreaterThan(1);
+    for (const tool of tools) {
+      expect(
+        (tool.description ?? "").length,
+        `${tool.name} carries no description`,
+      ).toBeGreaterThan(0);
+      expect(tool.outputSchema, `${tool.name} declares no output schema`).toBeDefined();
+      expect(
+        tool.inputSchema.additionalProperties,
+        `${tool.name} accepts undeclared arguments`,
+      ).toBe(false);
+      expect(tool.annotations?.readOnlyHint, `${tool.name} is not read-only`).toBe(true);
+    }
+  });
+
   it("lists the tools of two separately built servers in the same order", async () => {
     const first = await connected();
     const second = await connected();
@@ -108,7 +127,7 @@ describe("createServer", () => {
   });
 });
 
-describe("the list_categories wiring", () => {
+describe("the wiring of every tool", () => {
   /**
    * Drives a pending call to its end on the fake clock, whatever waits the
    * lower layer inserts between two attempts.
@@ -135,20 +154,43 @@ describe("the list_categories wiring", () => {
     return outcome.value;
   }
 
-  it("reads through the fetch it was handed and answers a tool error when that read fails", async () => {
-    const seen: string[] = [];
-    const impl: typeof fetch = (input) => {
-      seen.push(String(input));
-      return Promise.reject(new TypeError("the transport refused"));
-    };
-    const server = createServer({ fetchImpl: impl });
+  /** Every tool, with arguments that reach the site rather than a refusal. */
+  const CALLS = [
+    { name: "list_categories", arguments: {} },
+    { name: "search_recipes", arguments: { query: "brindilles" } },
+    { name: "browse_recipes", arguments: { category: "brindilles" } },
+    { name: "search_by_ingredients", arguments: { ingredients: ["poulet"] } },
+  ] as const;
+
+  for (const call of CALLS) {
+    it(`reads ${call.name} through the fetch it was handed, and answers a tool error when that read fails`, async () => {
+      const seen: string[] = [];
+      const impl: typeof fetch = (input) => {
+        seen.push(String(input));
+        return Promise.reject(new TypeError("the transport refused"));
+      };
+      const server = createServer({ fetchImpl: impl });
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: "contract-test", version: "0.0.0" });
+      await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+
+      const result = await settle(client.callTool({ ...call, arguments: { ...call.arguments } }));
+
+      expect(seen.length).toBeGreaterThan(0);
+      expect(result.isError).toBe(true);
+    });
+  }
+
+  it("answers a tool error rather than raising when the arguments are refused", async () => {
+    const server = createServer({ fetchImpl: forbiddenFetch });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "contract-test", version: "0.0.0" });
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
 
-    const result = await settle(client.callTool({ name: "list_categories", arguments: {} }));
+    const result = await settle(
+      client.callTool({ name: "browse_recipes", arguments: { category: "x", listing: "latest" } }),
+    );
 
-    expect(seen.length).toBeGreaterThan(0);
     expect(result.isError).toBe(true);
   });
 });

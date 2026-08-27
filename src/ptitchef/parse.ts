@@ -9,8 +9,15 @@
  */
 
 import { parseFailure } from "../errors.js";
-import type { Category, CategoryLink, CategoryReport } from "../types.js";
-import { absolute, isFamilyHref, slugFromHref } from "./urls.js";
+import type {
+  Category,
+  CategoryLink,
+  CategoryReport,
+  ListingKind,
+  ListingReport,
+  RecipeRow,
+} from "../types.js";
+import { absolute, isFamilyHref, recipeIdFrom, slugFromHref } from "./urls.js";
 
 /** The container the tree lives in, and the boundary of the page's own body. */
 const CONTAINER = /<div[^>]*class="[^"]*\brecipe-cat-list\b[^"]*"[^>]*>/;
@@ -187,3 +194,276 @@ export function parseCategoryPage(
     skipped,
   };
 }
+
+/** The listing itself, and one row of it. */
+const LISTING = /<section[^>]*class="[^"]*\bline-list\b[^"]*"[^>]*>/;
+const ROW = /<article[^>]*class="[^"]*\bitem\b[^"]*"[^>]*>([\s\S]*?)<\/article>/g;
+/** The heading of a row, which is the only place its address is published. */
+const ROW_TITLE = /<h2[^>]*class="[^"]*\bi-title\b[^"]*"[^>]*>([\s\S]*?)<\/h2>/;
+const ROW_IMAGE = /<img[^>]*class="[^"]*\bi-photo\b[^"]*"[^>]*\ssrc="([^"]*)"/;
+/** What a row states about itself, each behind the site's own wording. */
+const ROW_PROPERTY = /<span[^>]*title="([^"]*)"/g;
+const ROW_INGREDIENTS = /<div[^>]*class="[^"]*\bi-text\b[^"]*"[^>]*>([\s\S]*?)<\/div>/;
+/** Recipes the site says a listing holds, printed in the page's own title. */
+const LISTING_TOTAL = /-\s*(\d[\d\u00a0\u202f ]*)\s*recettes?\s+sur\s/i;
+const PAGE_TITLE = /<title[^>]*>([\s\S]*?)<\/title>/;
+/** The site's own heading for a listing. */
+const LISTING_HEADING = /<h1[^>]*>([\s\S]*?)<\/h1>/;
+/** A link to a further page of the same listing. */
+const NEXT_PAGE = /href="[^"]*-page-\d+"/;
+
+/** How a row states a duration: whole hours, whole minutes, or both. */
+const HOURS = /(\d+)\s*h/i;
+const MINUTES = /(?:\d+\s*h\s*)?(\d+)\s*(?:m|min)\b/i;
+const FIRST_NUMBER = /(\d+(?:[.,]\d+)?)/;
+
+/** The wording a row opens each of its properties with. */
+const PROPERTY_LABELS = {
+  category: "Type de recette:",
+  difficulty: "Difficulté:",
+  totalTime: "Prêt en:",
+  calories: "Calories:",
+} as const;
+
+/**
+ * Minutes a row's own wording states, or nothing when it states none.
+ *
+ * "2 h 20 m" and "30 min" are both written here, so the hours and the minutes
+ * are read separately and added: reading the first number alone would call two
+ * hours and twenty minutes two minutes.
+ */
+export function readMinutes(text: string): number | null {
+  const hours = HOURS.exec(text)?.[1];
+  const minutes = MINUTES.exec(text)?.[1];
+  if (hours === undefined && minutes === undefined) {
+    return null;
+  }
+  return Number(hours ?? 0) * 60 + Number(minutes ?? 0);
+}
+
+/** The first number a fragment states, or nothing when it states none. */
+function readNumber(text: string): number | null {
+  const found = FIRST_NUMBER.exec(text)?.[1];
+  return found === undefined ? null : Number(found.replace(",", "."));
+}
+
+/**
+ * Digits the site printed, with the spaces it groups thousands by removed.
+ *
+ * Only ever called on a fragment that already matched a digit, so there is
+ * always one left to read.
+ */
+const readCount = (text: string): number => Number(text.replace(GROUPING, ""));
+
+const GROUPING = /[^\d]/g;
+
+/** What one row states about itself, keyed by the wording it opens with. */
+function propertiesOf(markup: string): Map<string, string> {
+  const stated = new Map<string, string>();
+  for (const found of markup.matchAll(ROW_PROPERTY)) {
+    /* v8 ignore next 2 -- The pattern writes the group it reads, so a match
+       always carries it; the fallback is what narrows the type. */
+    const title = found[1] ?? "";
+    const at = title.indexOf(":");
+    if (at > 0) {
+      stated.set(title.slice(0, at + 1), title.slice(at + 1).trim());
+    }
+  }
+  return stated;
+}
+
+/**
+ * What a row's structured payload states about its rating.
+ *
+ * The page also draws the rating as a number of stars, rounded to the nearest
+ * whole one, and the two disagree by design. The drawn figure is left alone.
+ */
+interface RatingByRow {
+  rating: number | null;
+  rating_count: number | null;
+  review_count: number | null;
+}
+
+/** One row of the listing, or the reason it could not be rendered. */
+function rowIn(markup: string, ratings: Map<string, RatingByRow>): RecipeRow | string {
+  const heading = ROW_TITLE.exec(markup)?.[1];
+  if (heading === undefined) {
+    return "a row carries no heading, so there is nothing to name it by";
+  }
+  const href = ANCHOR.exec(heading)?.[1];
+  const id = href === undefined || href === "" ? null : recipeIdFrom(href);
+  if (id === null || href === undefined) {
+    return `"${textOf(heading)}" carries no recipe address, so there is nothing to pass back for it`;
+  }
+
+  const stated = propertiesOf(markup);
+  const time = stated.get(PROPERTY_LABELS.totalTime);
+  const calories = stated.get(PROPERTY_LABELS.calories);
+  const image = ROW_IMAGE.exec(markup)?.[1];
+  const preview = ROW_INGREDIENTS.exec(markup)?.[1];
+  const rated = ratings.get(id) ?? { rating: null, rating_count: null, review_count: null };
+
+  return {
+    id,
+    title: textOf(heading),
+    url: absolute(href),
+    image_url: image === undefined || image === "" ? null : absolute(image),
+    ...rated,
+    category: stated.get(PROPERTY_LABELS.category) ?? null,
+    difficulty: stated.get(PROPERTY_LABELS.difficulty) ?? null,
+    total_minutes: time === undefined ? null : readMinutes(time),
+    calories: calories === undefined ? null : readNumber(calories),
+    ingredients_preview: preview === undefined ? null : textOf(preview) || null,
+  };
+}
+
+/** What the page's structured payload states about each row it carries. */
+function ratingsIn(html: string): Map<string, RatingByRow> {
+  const ratings = new Map<string, RatingByRow>();
+  for (const block of html.matchAll(LD_BLOCK)) {
+    let parsed: unknown;
+    try {
+      /* v8 ignore next -- The pattern writes the group it reads, so a match always
+         carries it; the fallback is what narrows the type and no state reaches it. */
+      parsed = JSON.parse(block[1] ?? "");
+    } catch {
+      // A page carries several of these and only one is the listing. One that
+      // cannot be read says nothing about the others.
+      continue;
+    }
+    collectRatings(parsed, ratings);
+  }
+  return ratings;
+}
+
+const LD_BLOCK = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
+
+interface LdItem {
+  url?: unknown;
+  aggregateRating?: { ratingValue?: unknown; ratingCount?: unknown; reviewCount?: unknown };
+}
+
+/** A number the payload states as a string or as a number, or nothing. */
+function ldNumber(value: unknown): number | null {
+  // A payload is JSON, and JSON writes no infinity and no NaN, so a value that
+  // arrived as a number is one.
+  if (typeof value === "number") {
+    return value;
+  }
+  if (typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+  const read = Number(value);
+  return Number.isFinite(read) ? read : null;
+}
+
+function collectRatings(payload: unknown, into: Map<string, RatingByRow>): void {
+  if (!isRecord(payload)) {
+    return;
+  }
+  const elements = payload.itemListElement;
+  if (!Array.isArray(elements)) {
+    return;
+  }
+  for (const element of elements) {
+    if (!isRecord(element)) {
+      continue;
+    }
+    const item = element.item as LdItem | undefined;
+    const url = item?.url;
+    const id = typeof url === "string" ? recipeIdFrom(url) : null;
+    if (id === null) {
+      continue;
+    }
+    into.set(id, {
+      rating: ldNumber(item?.aggregateRating?.ratingValue),
+      rating_count: ldNumber(item?.aggregateRating?.ratingCount),
+      review_count: ldNumber(item?.aggregateRating?.reviewCount),
+    });
+  }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+export interface ParsedListingPage {
+  report: ListingReport;
+  /** Rows the page held that could not be rendered, and why. */
+  skipped: string[];
+}
+
+export interface ListingContext {
+  asked: string;
+  kind: ListingKind;
+  topicSlug: string | null;
+  page: number;
+  url: string;
+}
+
+/**
+ * Read one page of a listing.
+ *
+ * A page carrying no listing at all is how the site answers a search that
+ * matched nothing, so it is rendered as the absence it is. The total it prints
+ * settles that: a page that states none is a page this could not read.
+ */
+export function parseListingPage(html: string, context: ListingContext): ParsedListingPage {
+  /* v8 ignore next 2 -- A title that matched carries its only group; the
+     fallback narrows the type for a page carrying no title at all. */
+  const total = LISTING_TOTAL.exec(textOf(PAGE_TITLE.exec(html)?.[1] ?? ""))?.[1];
+  const stated = total === undefined ? null : readCount(total);
+
+  const section = LISTING.exec(html);
+  if (section === null && stated === null) {
+    throw parseFailure("Ptitchef served a page that carries neither a listing nor a count.", {
+      url: context.url,
+    });
+  }
+
+  const headingText = textOf(LISTING_HEADING.exec(html)?.[1] ?? "");
+
+  const results: RecipeRow[] = [];
+  const skipped: string[] = [];
+  let seen = 0;
+
+  if (section !== null) {
+    const after = html.slice(section.index + section[0].length);
+    const end = after.indexOf(LISTING_END);
+    const region = end === -1 ? after : after.slice(0, end);
+    const ratings = ratingsIn(html);
+
+    for (const found of region.matchAll(ROW)) {
+      seen += 1;
+      /* v8 ignore next -- The pattern writes the group it reads, so a match always
+         carries it; the fallback is what narrows the type and no state reaches it. */
+      const row = rowIn(found[1] ?? "", ratings);
+      if (typeof row === "string") {
+        skipped.push(row);
+      } else {
+        results.push(row);
+      }
+    }
+  }
+
+  return {
+    report: {
+      asked: context.asked,
+      kind: context.kind,
+      topic_slug: context.topicSlug,
+      title: headingText === "" ? null : headingText,
+      results,
+      result_count: results.length,
+      rows_seen: seen,
+      total_available: stated,
+      page: context.page,
+      // The site offers a further page by linking one. A listing it serves whole
+      // links none, and saying so keeps a caller from paging into a repeat of
+      // what they already hold.
+      single_page: !NEXT_PAGE.test(html),
+      url: context.url,
+    },
+    skipped,
+  };
+}
+
+const LISTING_END = "</section>";

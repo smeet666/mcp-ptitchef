@@ -3,7 +3,7 @@
   "name": "mcp-ptitchef",
   "display_name": "Ptitchef",
   "version": "0.1.0",
-  "description": "MCP server for Ptitchef. Browse the recipe category tree and read its recipes. No API key required.",
+  "description": "MCP server for Ptitchef. Search recipes, browse the category tree, and cook from what you have. No API key required.",
   "long_description": "Ptitchef browses its recipes by a tree of ingredient families, and every category is addressed by a slug the site writes freely: the same ingredient appears as 'chou-kale' on one line and as 'recette-de-petits-pois' on the next. A slug built by hand therefore reaches a page the site does not hold, which a caller reads as the site holding no such recipes. This server publishes the tree instead, so a category is opened by the name the site gave it. Every answer states what the page listed beside what it rendered, and the entries the site shows beside a family are marked as the excerpt the site prints them to be. Read-only, no API key and no account.",
   "author": {
     "name": "Damien Bouissou",
@@ -31,6 +31,18 @@
     {
       "name": "list_categories",
       "description": "List the categories recipes are browsed by: the families of ingredients, or what one family holds, each with the slug that opens it."
+    },
+    {
+      "name": "search_recipes",
+      "description": "Search recipes by dish or ingredient, and say whether the site answered from a category page of its own or on its own terms."
+    },
+    {
+      "name": "browse_recipes",
+      "description": "Read the recipes under one category page by page, or one of the lists the site keeps standing."
+    },
+    {
+      "name": "search_by_ingredients",
+      "description": "Find recipes from one to five ingredients a cook already has, through the site's own fridge search."
     }
   ],
   "compatibility": {

@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "mcp-ptitchef",
   "display_name": "Ptitchef",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server for Ptitchef. Search recipes, browse the category tree, read one with its ingredients and method, rescale it, and cook from what is in the fridge. No API key required.",
   "long_description": "Ptitchef browses its recipes by a tree of ingredient families, and every category is addressed by a slug the site writes freely: the same ingredient appears as 'chou-kale' on one line and as 'recette-de-petits-pois' on the next. A slug built by hand therefore reaches a page the site does not hold, which a caller reads as the site holding no such recipes. This server publishes the tree instead, so a category is opened by the name the site gave it. Every answer states what the page listed beside what it rendered, and the entries the site shows beside a family are marked as the excerpt the site prints them to be. Read-only, no API key and no account.",
   "author": {

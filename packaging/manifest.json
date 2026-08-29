@@ -30,195 +30,31 @@
   "tools": [
     {
       "name": "list_categories",
-      "description": "List the categories recipes are browsed by: the families of ingredients, or what one family holds, each with the slug that opens it.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "family": {
-            "description": "The slug of a family to open, taken from a previous call. Leave it out to read the families themselves, which is where the tree starts.",
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 80
-          },
-          "limit": {
-            "description": "Entries to render, 20 by default and 200 at most. A level holding more than this says so, and 'categories_published' always states what the page listed.",
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 200
-          }
-        },
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false
-      }
+      "description": "List the categories recipes are browsed by: the families of ingredients, or what one family holds, each with the slug that opens it."
     },
     {
       "name": "search_recipes",
-      "description": "Search recipes by dish or ingredient, and say whether the site answered from a category page of its own or on its own terms.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "query": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120,
-            "description": "A dish or an ingredient, in French, as a reader of the site would type it."
-          },
-          "limit": {
-            "description": "Rows to render, 20 by default. 'rows_seen' states what the page served.",
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100
-          }
-        },
-        "required": ["query"],
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false
-      }
+      "description": "Search recipes by dish or ingredient, and say whether the site answered from a category page of its own or on its own terms."
     },
     {
       "name": "browse_recipes",
-      "description": "Read the recipes under one category page by page, or one of the lists the site keeps standing.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "category": {
-            "description": "A category slug: one from list_categories whose 'is_family' is false, or the 'topic_slug' a search answered with. A family's slug belongs to list_categories instead.",
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120
-          },
-          "listing": {
-            "description": "One of the site's standing lists, read instead of a category.",
-            "type": "string",
-            "enum": ["latest", "top_rated", "most_viewed"]
-          },
-          "page": {
-            "description": "The page of a category to read. A standing list has one page only.",
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 1000
-          },
-          "limit": {
-            "description": "Rows to render, 20 by default.",
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100
-          }
-        },
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false
-      }
+      "description": "Read the recipes under one category page by page, or one of the lists the site keeps standing."
     },
     {
       "name": "search_by_ingredients",
-      "description": "Find recipes from one to five ingredients a cook already has, through the site's own fridge search.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "ingredients": {
-            "minItems": 1,
-            "maxItems": 5,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 60
-            },
-            "description": "One to 5 ingredients, in French. The site reads no more than that."
-          },
-          "limit": {
-            "description": "Rows to render, 20 by default.",
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100
-          }
-        },
-        "required": ["ingredients"],
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false
-      }
+      "description": "Find recipes from one to five ingredients a cook already has, through the site's own fridge search."
     },
     {
       "name": "get_recipe",
-      "description": "Read one recipe: ingredients, method, times, rating, nutrition and the cost the site estimates, rescaled to a number of servings on request.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 300,
-            "description": "The 'id' of a row from a search or a listing, which is the recipe's own page path."
-          },
-          "servings": {
-            "description": "Rescale the ingredients to this many servings. Left out, the ingredients come back as published.",
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 500
-          }
-        },
-        "required": ["id"],
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false
-      }
+      "description": "Read one recipe: ingredients, method, times, rating, nutrition and the cost the site estimates, rescaled to a number of servings on request."
     },
     {
       "name": "scale_ingredients",
-      "description": "Rescale any French ingredient list offline, saying of each line whether the result is exact, rounded to stay usable, or nothing that could be multiplied.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "ingredients": {
-            "minItems": 1,
-            "maxItems": 100,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "maxLength": 300
-            },
-            "description": "Ingredient lines, for example ['200 g de farine', '3 oeufs', 'sel']."
-          },
-          "factor": {
-            "description": "Multiplier to apply. Use this or the from/to pair.",
-            "type": "number",
-            "exclusiveMinimum": 0,
-            "maximum": 100
-          },
-          "from_servings": {
-            "description": "How many servings the list is written for.",
-            "type": "number",
-            "exclusiveMinimum": 0,
-            "maximum": 500
-          },
-          "to_servings": {
-            "description": "How many servings are wanted.",
-            "type": "number",
-            "exclusiveMinimum": 0,
-            "maximum": 500
-          }
-        },
-        "required": ["ingredients"],
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false
-      }
+      "description": "Rescale any French ingredient list offline, saying of each line whether the result is exact, rounded to stay usable, or nothing that could be multiplied."
     },
     {
       "name": "get_recipe_translations",
-      "description": "List the other languages a recipe was published in, using the pairing the site itself publishes between its editions.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 300,
-            "description": "The 'id' of a row from a search or a listing, which is the recipe's own page path."
-          }
-        },
-        "required": ["id"],
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false
-      }
+      "description": "List the other languages a recipe was published in, using the pairing the site itself publishes between its editions."
     }
   ],
   "compatibility": {

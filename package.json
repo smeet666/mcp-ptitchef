@@ -1,6 +1,6 @@
 {
   "name": "mcp-ptitchef",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server for Ptitchef. Search recipes, browse the category tree, read one with its ingredients and method, rescale it, and cook from what is in the fridge. No API key required.",
   "keywords": [
     "mcp",

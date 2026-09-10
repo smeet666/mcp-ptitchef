@@ -335,7 +335,7 @@ export async function runGetRecipe(
       keywords: recipe.keywords,
       faq: recipe.faq,
       translations: recipe.translations,
-      attribution: `${SOURCE_NAME} — ${recipe.url}`,
+      attribution: `${SOURCE_NAME} (${recipe.url})`,
       source: SOURCE_NAME,
       notes,
     },

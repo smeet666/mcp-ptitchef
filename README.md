@@ -65,7 +65,7 @@ Node 24 or later is required, and no environment variable has to be set.
   "mcpServers": {
     "ptitchef": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "ghcr.io/smeet666/mcp-ptitchef:1.0.1"]
+      "args": ["run", "-i", "--rm", "ghcr.io/smeet666/mcp-ptitchef:1.0.2"]
     }
   }
 }
@@ -77,7 +77,7 @@ because a TTY rewrites the stream. The container needs outbound HTTPS to
 
 ### Bundle, without npm
 
-Download `mcp-ptitchef-1.0.1.mcpb` from
+Download `mcp-ptitchef-1.0.2.mcpb` from
 [the latest release](https://github.com/smeet666/mcp-ptitchef/releases/latest)
 and open it. A client that supports MCP bundles installs it on its own, with no
 npm and no configuration file to edit. The bundle carries its dependencies, so
@@ -160,8 +160,9 @@ Reads a category page by page, or one of the site's standing lists.
 | `limit`    | integer, 1 to 100, default `20`        | no       | Rows to serve.                                                |
 
 **In return:** the envelope `search_recipes` returns, with `kind` reading
-`category`, `standing` or `topic`. `page` is the page the site served, which is
-the first one again when the page asked for is past the last.
+`category`, `standing` or `topic`. `page` is the page the site served. A page
+past the last one comes back either as the first page again or as a `not_found`
+refusal naming it past the last page.
 
 ### `search_by_ingredients`
 
@@ -397,7 +398,7 @@ renseigner.
   "mcpServers": {
     "ptitchef": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "ghcr.io/smeet666/mcp-ptitchef:1.0.1"]
+      "args": ["run", "-i", "--rm", "ghcr.io/smeet666/mcp-ptitchef:1.0.2"]
     }
   }
 }
@@ -410,7 +411,7 @@ aucun identifiant.
 
 ### Bundle, sans npm
 
-Téléchargez `mcp-ptitchef-1.0.1.mcpb` depuis
+Téléchargez `mcp-ptitchef-1.0.2.mcpb` depuis
 [la dernière publication](https://github.com/smeet666/mcp-ptitchef/releases/latest)
 et ouvrez-le. Un client qui gère les bundles MCP l'installe seul, sans npm et
 sans fichier de configuration à modifier. Le bundle emporte ses dépendances, donc
@@ -493,8 +494,9 @@ Lit une catégorie page par page, ou l'une des listes permanentes du site.
 | `limit`    | entier, 1 à 100, défaut `20`           | non    | Lignes à servir.                                                 |
 
 **En retour :** l'enveloppe que rend `search_recipes`, avec `kind` valant
-`category`, `standing` ou `topic`. `page` est la page que le site a servie, qui
-est la première de nouveau quand la page demandée dépasse la dernière.
+`category`, `standing` ou `topic`. `page` est la page que le site a servie. Une
+page au-delà de la dernière revient soit comme la première page, soit comme un
+refus `not_found` qui la nomme au-delà de la dernière page.
 
 ### `search_by_ingredients`
 

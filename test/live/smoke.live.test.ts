@@ -161,20 +161,25 @@ describe.skipIf(!process.env.PTC_LIVE)("Ptitchef listings, live", () => {
     expect(report.total_available, "an invented term returned no count of zero").toBe(0);
   });
 
-  it("pages a category, and answers a page past the last one with the first", async () => {
-    // The page an answer reports is read off the address it came back from. If
-    // the site started serving an empty page instead, a caller would page past
+  it("pages a category, and answers a page past the last one as one", async () => {
+    // The site answers a page past the last one either with the first page or
+    // as gone. Either way the answer has to say so, or a caller would page past
     // the end without noticing.
     const first = structuredOf<ListingShape>(
       await runBrowseRecipes(client, { category: "tarte-aux-pommes" }),
     );
-    const past = structuredOf<ListingShape>(
-      await runBrowseRecipes(client, { category: "tarte-aux-pommes", page: 999 }),
+    const past = await runBrowseRecipes(client, { category: "tarte-aux-pommes", page: 999 }).then(
+      (result) => ({ page: structuredOf<ListingShape>(result).page, refusal: null }),
+      (error: unknown) => ({ page: null, refusal: String(error) }),
     );
 
     expect(first.page).toBe(1);
     expect(first.single_page, "a paged category stopped linking its further pages").toBe(false);
-    expect(past.page, "the site stopped answering a page past the last one with the first").toBe(1);
+    if (past.refusal === null) {
+      expect(past.page, "a page past the last one was reported as read").toBe(1);
+    } else {
+      expect(past.refusal).toContain("past the last page");
+    }
   });
 
   it("reads a standing list the site serves whole", async () => {

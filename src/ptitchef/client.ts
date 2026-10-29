@@ -7,7 +7,7 @@
  */
 
 import type { Config, Logger } from "../config.js";
-import { invalidInput, notFound } from "../errors.js";
+import { invalidInput, notFound, PtitchefError } from "../errors.js";
 import type { CategoryReport, ListingKind, ListingReport, Read, Recipe } from "../types.js";
 import { Cache } from "./cache.js";
 import { fetchPage, type Page } from "./http.js";
@@ -215,14 +215,47 @@ export class PtitchefClient {
   /**
    * Read one page of a category listing, or one of the site's standing lists.
    *
-   * A page past the last one is answered with the first page, so the address
-   * the answer came back from settles which page was read. Reporting the page
-   * that was asked for would send a caller round the same rows for ever.
+   * The site answers a page past the last one in two ways. It may serve the
+   * first page, so the address the answer came back from settles which page was
+   * read: reporting the page that was asked for would send a caller round the
+   * same rows for ever. It may also answer the page as gone, which says nothing
+   * of the category, so the first page is read to tell an exhausted category
+   * from one the site does not hold.
    */
   async browseRecipes(options: BrowseOptions): Promise<Read<ListingReport>> {
     const page = options.page ?? 1;
     const target = browseTarget(options, page);
 
+    try {
+      return await this.readBrowseTarget(target);
+    } catch (error) {
+      const gonePage =
+        error instanceof PtitchefError &&
+        error.code === "not_found" &&
+        target.kind === "category" &&
+        page > 1;
+      if (!gonePage) {
+        throw error;
+      }
+      const firstServed = await this.readBrowseTarget(browseTarget(options, 1)).then(
+        () => true,
+        () => false,
+      );
+      if (!firstServed) {
+        throw error;
+      }
+      throw notFound(
+        `Page ${page} is past the last page of "${target.asked}": the site serves its first page and nothing at page ${page}.`,
+        { hint: "Ask for an earlier page.", url: target.url },
+      );
+    }
+  }
+
+  private async readBrowseTarget(target: {
+    url: string;
+    asked: string;
+    kind: ListingKind;
+  }): Promise<Read<ListingReport>> {
     return await this.readListing(target.url, (servedUrl) => {
       const at = listingAt(servedUrl);
       return {

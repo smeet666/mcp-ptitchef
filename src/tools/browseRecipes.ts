@@ -5,9 +5,10 @@
  * by page, or one of the lists the site keeps standing. It is also how a search
  * that landed on a category page is read past its first page.
  *
- * The site answers a page past the last one with the first page, so the page
- * this reports is the one the site served rather than the one that was asked
- * for. A caller told otherwise would walk the same rows for ever.
+ * The site answers a page past the last one either with the first page or as
+ * gone. The page this reports is the one the site served, since a caller told
+ * otherwise would walk the same rows for ever, and a page answered as gone is
+ * refused as past the last one.
  */
 
 import { z } from "zod";
@@ -31,8 +32,8 @@ export const browseRecipesDescription =
   "or pass 'listing' for one of: " +
   `${STANDING_NAMES.join(", ")}. ` +
   "Never build a category slug by hand: the site writes them freely and answers an address it does " +
-  "not hold by serving another page. The page in the answer is the one the site served, which is the " +
-  "first page again when the page asked for is past the last one.";
+  "not hold by serving another page. The page in the answer is the one the site served. A page past " +
+  "the last one comes back either as the first page again or as not_found naming it past the last page.";
 
 export const browseRecipesInput = {
   category: z

@@ -1,6 +1,6 @@
 {
   "name": "mcp-ptitchef",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "MCP server for Ptitchef. Search recipes, browse the category tree, read one with its ingredients and method, rescale it, and cook from what is in the fridge. No API key required.",
   "keywords": [
     "mcp",
@@ -50,7 +50,7 @@
     "server.json"
   ],
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=24.22.1"
   },
   "mcpName": "io.github.smeet666/mcp-ptitchef",
   "scripts": {
@@ -73,12 +73,12 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.12",
-    "@types/node": "24.13.4",
-    "@vitest/coverage-v8": "4.1.11",
-    "prettier": "3.9.6",
-    "tsup": "8.5.1",
+    "@biomejs/biome": "2.6.3",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.0.5",
+    "prettier": "3.9.10",
+    "tsup": "9.0.0",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "5.0.5"
   }
 }

@@ -1,3 +1,8 @@
+## 1.1.0
+
+- **Node.js 24.22.1 or later**, inside the Node.js 24 line. The package, the
+  extension manifest and the image all declare it.
+
 ## 1.0.2
 
 - **A page past the last one of a category is named as such.** Ptitchef answers

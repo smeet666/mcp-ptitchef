@@ -310,7 +310,7 @@ function rowIn(markup: string, ratings: Map<string, RatingByRow>): RecipeRow | s
     total_minutes: time === undefined ? null : readMinutes(time),
     // Kept as the row writes it, unit and scope included. Reading a bare number
     // out of "295 kcal / 1 part" would make this server the one claiming both.
-    calories: calories === undefined ? null : calories,
+    calories: calories ?? null,
     ingredients_preview: preview === undefined ? null : textOf(preview) || null,
   };
 }

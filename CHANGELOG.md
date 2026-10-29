@@ -1,3 +1,12 @@
+## 1.0.2
+
+- **A page past the last one of a category is named as such.** Ptitchef answers
+  such a page either with the category's first page or with `410 Gone`. The
+  second answer reached the caller as an address holding nothing, which reads as
+  a category the site does not hold. `browse_recipes` now reads the first page
+  when a later one is gone, and refuses with a `not_found` that names the page as
+  past the last one when the category is there.
+
 # Changelog
 
 ## 1.0.1

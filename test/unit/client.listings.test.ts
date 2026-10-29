@@ -183,6 +183,57 @@ describe("PtitchefClient.browseRecipes", () => {
     expect(read.data.page).toBe(1);
   });
 
+  it("says a page is past the last one when the site answers it gone and serves the first", async () => {
+    // The site also answers a page past the last one with 410. Reporting that as
+    // an address holding nothing would say the category does not exist.
+    const calls: string[] = [];
+    const impl = async (input: string | URL | Request): Promise<Response> => {
+      const asked = urlOf(input);
+      calls.push(asked);
+      if (asked.endsWith("-page-99")) {
+        return new Response("", { status: 410 });
+      }
+      const response = new Response(fixture("listing-first"), {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+      Object.defineProperty(response, "url", { value: asked });
+      return response;
+    };
+    const read = runWithClock(
+      clientFor(impl as unknown as typeof fetch).browseRecipes({
+        category: "brindilles",
+        page: 99,
+      }),
+    );
+
+    await expect(read).rejects.toMatchObject({
+      code: "not_found",
+      message: expect.stringContaining("past the last page"),
+    });
+    expect(calls).toEqual([
+      "https://www.ptitchef.com/recettes/brindilles-page-99",
+      "https://www.ptitchef.com/recettes/brindilles-page-1",
+    ]);
+  });
+
+  it("keeps the absence when the first page of a category is gone too", async () => {
+    const calls: string[] = [];
+    const impl = async (input: string | URL | Request): Promise<Response> => {
+      calls.push(urlOf(input));
+      return new Response("", { status: 410 });
+    };
+    const read = runWithClock(
+      clientFor(impl as unknown as typeof fetch).browseRecipes({ category: "brindilles", page: 3 }),
+    );
+
+    await expect(read).rejects.toMatchObject({
+      code: "not_found",
+      message: "Ptitchef holds nothing at this address.",
+    });
+    expect(calls).toHaveLength(2);
+  });
+
   it("asks for a standing list by its own address", async () => {
     const fake = fakeFetch(fixture("listing-whole"));
     const read = await runWithClock(

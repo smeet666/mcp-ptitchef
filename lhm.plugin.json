@@ -465,7 +465,7 @@
     {
       "name": "browse_recipes",
       "title": "Browse a category or a standing list",
-      "description": "Read the recipes under one category of Ptitchef, page by page, or one of the lists the site keeps standing. Pass 'category' with a slug from list_categories or from a search's 'topic_slug', or pass 'listing' for one of: latest, top_rated, most_viewed. Never build a category slug by hand: the site writes them freely and answers an address it does not hold by serving another page. The page in the answer is the one the site served, which is the first page again when the page asked for is past the last one.",
+      "description": "Read the recipes under one category of Ptitchef, page by page, or one of the lists the site keeps standing. Pass 'category' with a slug from list_categories or from a search's 'topic_slug', or pass 'listing' for one of: latest, top_rated, most_viewed. Never build a category slug by hand: the site writes them freely and answers an address it does not hold by serving another page. The page in the answer is the one the site served. A page past the last one comes back either as the first page again or as not_found naming it past the last page.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1907,5 +1907,5 @@
       }
     }
   ],
-  "version": "1.0.1"
+  "version": "1.0.2"
 }

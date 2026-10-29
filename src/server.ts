@@ -86,7 +86,7 @@ export const INSTRUCTIONS = [
   "browse_recipes reads a category page by page, and search_by_ingredients answers what can be made from what a cook has.",
   "Some topics are answered with a guide the site wrote: recipes grouped under headings of its own, with no total and rows carrying only a name and an address. 'kind' says 'guide' there, and browse_recipes on the same 'topic_slug' reads the topic's full listing with its total.",
   "A listing marked 'single_page' whose total exceeds 'rows_seen' has a remainder the site counts and will not serve.",
-  "The page an answer reports is the page the site served, which is the first page again when the page asked for is past the last one.",
+  "The page an answer reports is the page the site served. A page past the last one comes back either as the first page again or as not_found naming it past the last page.",
   "get_recipe reads one recipe from the 'id' a listing row carried, and rescales its ingredients when given 'servings'. Read each line's 'scaling' before quoting a quantity: 'scaled' is exact, 'rounded' was moved to stay usable, 'unscaled' carries nothing that could be multiplied.",
   "scale_ingredients does the same arithmetic offline on any French ingredient list, whatever its source.",
   "get_recipe_translations lists the other languages a recipe was published in, using the pairing the site itself publishes.",

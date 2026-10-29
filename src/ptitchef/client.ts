@@ -100,7 +100,7 @@ export class PtitchefClient {
    */
   private read(url: string): Promise<Page> {
     const already = this.inFlight.get(url);
-    if (already) {
+    if (already !== undefined) {
       this.logger.debug(`joined a read already under way: ${url}`);
       return already;
     }

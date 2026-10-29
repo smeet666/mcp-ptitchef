@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { describe, expect, it } from "vitest";
 
 import { formatMinutes, parseIsoDuration, parseYield } from "../../src/recipe/duration.js";
@@ -19,7 +20,7 @@ describe("parseIsoDuration", () => {
 
   it("returns null on junk", () => {
     for (const junk of ["", "25 min", "PT", "hello", "P1D2H", null, undefined, 42, {}]) {
-      expect(parseIsoDuration(junk), String(junk)).toBeNull();
+      expect(parseIsoDuration(junk), inspect(junk)).toBeNull();
     }
   });
 });
@@ -73,8 +74,8 @@ describe("parseYield", () => {
   it("never invents a count for a non-string yield", () => {
     for (const v of [null, undefined, {}, []]) {
       const y = parseYield(v);
-      expect(y.count, String(v)).toBeNull();
-      expect(typeof y.text, String(v)).toBe("string");
+      expect(y.count, inspect(v)).toBeNull();
+      expect(typeof y.text, inspect(v)).toBe("string");
     }
   });
 
